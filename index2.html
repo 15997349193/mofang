@@ -10,6 +10,7 @@
     --muted: #6b7280; --accent: #2563eb; --accent-soft: #e8effd; --warn: #b45309; --err: #b91c1c;
   }
   * { box-sizing: border-box; }
+  html, body { caret-color: transparent; }   /* 教学一体机误开 Edge「插入符浏览」时不显示闪烁插入符 */
   body { margin: 0; font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background: var(--bg); color: var(--text); }
   header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 20px; }
   header h1 { font-size: 18px; margin: 0 0 4px; }
@@ -80,8 +81,7 @@
   #colorPopup .cp { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(0,0,0,.3); cursor: pointer; }
   #colorPopup .cp:hover { transform: scale(1.12); box-shadow: 0 0 0 2px #1f2430; }
 
-  #outString { width: 100%; font-family: Consolas, monospace; font-size: 13px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: #fafafa; word-break: break-all; cursor: text; user-select: text; }
-  #outString:focus { outline: 2px solid #7aa7ff; background: #fff; }
+  #outString { width: 100%; font-family: Consolas, monospace; font-size: 13px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: #fafafa; word-break: break-all; cursor: default; user-select: text; }
   .val { font-size: 12px; line-height: 1.7; }
   .val .ok { color: #15803d; } .val .warn { color: var(--warn); } .val .err { color: var(--err); }
     /* ===== 贴纸统计 ===== */
@@ -110,7 +110,8 @@
 
   /* ===== 还原动画演示舞台（教学：大字步骤 + 3D 同步转动） ===== */
   #showStage { position: fixed; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%;
-    inset: 0; z-index: 200; display: flex; flex-direction: column;
+    inset: 0; z-index: 200; display: none; flex-direction: column;
+    background: #0a0e17;
     background: radial-gradient(120% 90% at 50% 0%, #1a2440 0%, #0a0e17 58%, #04060a 100%);
     color: #eef2ff; opacity: 0; visibility: hidden; pointer-events: none;
     transition: opacity .3s ease, visibility 0s linear .3s; overflow: hidden;
@@ -141,7 +142,8 @@
   .nowRow { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 2px; }
   .nowLetter { font-size: 76px; font-size: clamp(52px, 8.6vmin, 92px); font-weight: 800; line-height: 1.02; letter-spacing: -2px;
     background: linear-gradient(180deg, #ffffff 20%, #7ee7a8 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-background-clip: text; background-clip: text;
+    color: #a7f3c4; -webkit-text-fill-color: transparent;
     filter: drop-shadow(0 0 26px rgba(74,222,128,.5)); }
   .nowLetter.fin { letter-spacing: 0; }
   .nowArrow { width: 46px; height: 46px; width: clamp(34px, 4.6vmin, 50px); height: clamp(34px, 4.6vmin, 50px); color: #7ee7a8;
@@ -218,7 +220,7 @@
 </head>
 <body>
 <header>
-  <h1>魔方照片转贴纸（Cube Explorer 辅助录入）</h1>
+  <h1>魔方照片转贴纸（Cube Explorer 辅助录入） <span style="font-size:11px;font-weight:400;color:#8a93a6;letter-spacing:0">v2026.11.02-c</span></h1>
   <p>两张照片录全六面：第 1 张黄色中心朝上（拍到 U/F/R），第 2 张白色中心朝上（拍到 D/L/B）。
      上传后<b>自动识别三个面的角点并填充颜色</b>（供参考）；如角点有偏差，可拖动照片上的角点方块微调，或点「重选本照片的角点」手动重标。
      面字母由中心色自动判定：黄U 红F 绿R 白D 蓝L 橙B。
@@ -274,10 +276,11 @@
 
     <div class="card">
       <h2>Facelet 编码（URFDLB 顺序，54 字符）</h2>
-      <div id="outString" contenteditable="true" spellcheck="false" title="可直接粘贴 54 字符编码（URFDLB），粘贴后两个视图自动填色">尚未识别</div>
+      <div id="outString" title="复制 54 字符编码后在页面任意位置按 Ctrl+V 即可自动填色">尚未识别</div>
       <div class="row" style="margin-top:8px">
         <button class="primary" id="btnCopy" disabled>复制完整编码</button>
-        <span class="hint">未拍到的面用 ? 表示。本框支持直接粘贴 54 字符编码（如从 Cube Explorer 复制），粘贴后两个视图自动填色、校验通过即可求解；也可手动编辑。</span>
+        <button id="btnPaste">粘贴编码</button>
+        <span class="hint">未拍到的面用 ? 表示。复制编码（如从 Cube Explorer）后<b>在页面任意位置按 Ctrl+V</b>，或点「粘贴编码」，两个视图会自动填色、校验通过即可求解。</span>
       </div>
     </div>
 
@@ -1101,11 +1104,24 @@ function rebuildPhotoDom(){
   photos.forEach(fitCanvas);
 }
 
-/* ============ 图片载入入口 ============ */
+/* ============ 图片载入入口 + 编码粘贴入口 ============ */
 document.addEventListener('paste',e=>{
-  if(e.target && e.target.id==='outString') return;   // 编码框粘贴由其自身处理器负责
-  for(const item of (e.clipboardData||{}).items||[]){
-    if(item.type.startsWith('image/')){ loadImageFile(item.getAsFile()); e.preventDefault(); return; }
+  const dt=e.clipboardData||window.clipboardData;
+  const items=(dt&&dt.items)||[];
+  let hasImg=false;
+  for(const item of items) if(item.type && item.type.indexOf('image/')===0) hasImg=true;
+  // 剪贴板里是 54 字符 URFDLB 编码 → 优先按编码处理（页面任意位置 Ctrl+V 都生效）
+  const raw=dt? (dt.getData('text')||'') : '';
+  const code=sanitizeFacelet(raw);
+  if(!hasImg && code.length===54 && code.indexOf('?')<0){
+    e.preventDefault();
+    applyFaceletString(code,'paste');
+    return;
+  }
+  if(hasImg){
+    for(const item of items) if(item.type && item.type.indexOf('image/')===0){
+      loadImageFile(item.getAsFile()); e.preventDefault(); return;
+    }
   }
 });
 ['dragover','dragleave','drop'].forEach(ev=>{
@@ -2300,19 +2316,19 @@ function applyFaceletString(str, source){
   }
   return true;
 }
-$('outString').addEventListener('paste',e=>{
-  e.preventDefault();
-  const text=(e.clipboardData||window.clipboardData).getData('text');
-  const str=sanitizeFacelet(text);
-  if(!str.length){ toast('剪贴板里没有可识别的字母'); return; }
-  if(!applyFaceletString(str,'paste')){
-    // 失败时恢复显示当前状态，避免残缺文本留在框里
-    renderString();
+$('btnPaste').addEventListener('click',()=>{
+  const done=txt=>{
+    const str=sanitizeFacelet(txt||'');
+    if(!str.length){ toast('剪贴板里没有可识别的字母'); return; }
+    applyFaceletString(str,'paste');
+  };
+  if(navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(done).catch(()=>{
+      toast('浏览器不允许读取剪贴板，请复制编码后按 Ctrl+V（页面任意位置即可）');
+    });
+  }else{
+    toast('请复制编码后按 Ctrl+V（页面任意位置即可）');
   }
-});
-$('outString').addEventListener('input',()=>{
-  const str=sanitizeFacelet($('outString').textContent);
-  if(str.length===54 && !str.includes('?')) applyFaceletString(str,'input');
 });
 $('btnCopy').addEventListener('click',()=>{
   const str=renderString();
@@ -2889,20 +2905,33 @@ function openShowStage(alg){
   document.body.style.overflow='hidden';
   stage.open=true;
   $('showPlay').textContent='暂停';
-  // 直接加 on 类（覆盖层始终参与布局，transition 照常生效）；rAF 在部分旧内核/隐藏状态下不回调，
-  // 只用它做“首帧后再放大”会有画面一直不出现的风险，这里改为立即加 + 定时兜底
+  // 老内核兜底：关键布局与可见性全部用内联样式强制（不依赖类样式/UA 的 [hidden] 规则，
+  // 部分国产内核里 display:flex 会被 [hidden]{display:none} 压制，表现为"只有声音没有画面"）
   const stEl=$('showStage');
+  stEl.style.display='flex';
+  stEl.style.flexDirection='column';
+  stEl.style.position='fixed';
+  stEl.style.top='0'; stEl.style.left='0'; stEl.style.right='0'; stEl.style.bottom='0';
+  stEl.style.width='100vw'; stEl.style.height='100vh';
+  stEl.style.zIndex='9999';
+  stEl.style.opacity='1';
+  stEl.style.visibility='visible';
+  stEl.style.pointerEvents='auto';
   stEl.classList.add('on');
-  setTimeout(()=>{ if(stage.open) stEl.classList.add('on'); }, 80);
+  setTimeout(()=>{ if(stage.open){ stEl.classList.add('on'); stEl.style.display='flex'; stEl.style.opacity='1'; stEl.style.visibility='visible'; } }, 80);
   setTimeout(()=>{ if(stage.open) runShow(false); },260);
 }
 function closeShowStage(){
   stage.token++;
   stage.open=false; stage.playing=false;
   stopSpeak();
-  $('showStage').classList.remove('on');
+  const stEl=$('showStage');
+  stEl.classList.remove('on');
+  stEl.style.opacity='0';
+  stEl.style.visibility='hidden';
+  stEl.style.pointerEvents='none';
   document.body.style.overflow='';
-  setTimeout(()=>{ if(!stage.open) $('showStage').hidden=true; },320);
+  setTimeout(()=>{ if(!stage.open){ stEl.style.display='none'; stEl.hidden=true; } },320);
 }
 $('showClose').addEventListener('click',closeShowStage);
 $('showPlay').addEventListener('click',()=>{
