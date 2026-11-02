@@ -29,6 +29,9 @@
   .photoTag { font-size: 12px; color: var(--muted); margin-bottom: 6px; line-height: 1.5; }
   .photoCard.active .photoTag { color: var(--accent); font-weight: bold; }
   .photoCard canvas { display: block; max-width: 100%; cursor: crosshair; }
+  .photoCard.guideCard { border-style: dashed; background: #fbfcfe; }
+  .guideCard svg { display: block; width: 100%; height: auto; }
+  .guideCap { font-size: 12px; color: var(--muted); text-align: center; padding: 6px 4px 2px; line-height: 1.7; }
   #dropZone { border: 2px dashed var(--border); border-radius: 10px; background: var(--panel);
     min-height: 320px; flex: 1 1 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
   #dropZone.drag { border-color: var(--accent); background: var(--accent-soft); }
@@ -978,14 +981,16 @@ function classify(rgb){
   // 白：低饱和度且不太暗（照片上的橙色贴纸常因反光变浅，Lab 下靠近白，先按色相/饱和度把关）
   if(s<0.18 && v>0.55) return '白';
   // 橙：色相 15-45° 且饱和度较高（亮橙/泛白橙在 Lab 下易近白，用色相强制纠正）
-  if(h>=15 && h<45 && s>=0.45) return '橙';
+  if(h>=10 && h<45 && s>=0.40) return '橙';   // 色相下限 15→10：暖光下橙贴纸色相会偏移到 10~15°
   const L=srgb2lab(...rgb);
   const scored=Object.keys(REF_LAB).map(k=>[k,dist3(L,REF_LAB[k])]).sort((a,b)=>a[1]-b[1]);
   const [k1,d1]=scored[0], [k2,d2]=scored[1];
   // 红/橙易混：红色深（色相≈0°），橙色明亮（色相≈20-35°）。距离接近时用色相裁决
   const redOrange=((k1==='红'&&k2==='橙')||(k1==='橙'&&k2==='红'));
   if(redOrange && d2/Math.max(d1,1e-9)<2.5){
-    return (h<15||h>345)?'红':'橙';
+    if(v>=0.55) return '橙';        // 明亮的红/橙之间 → 橙（橙贴纸明显更亮）
+    if(v<0.40) return '红';         // 暗红
+    return (h<10||h>350)?'红':'橙';
   }
   // Lab 判白但色相/饱和度明显偏橙 → 纠正为橙
   if(k1==='白' && h>=15 && h<=45 && s>0.28) return '橙';
@@ -1037,6 +1042,28 @@ function replacePhotoImage(p, im){
   p.im=im; p.clicks=[]; p.quads=[null,null,null]; p.phaseIdx=0; p.grids={}; p.auto=false;
   fitCanvas(p);
 }
+/* ---- 拍摄对照图（等轴测魔方视图，中心色圈注；照片上传后自动被覆盖） ---- */
+const GUIDE_SVG = [
+  "<svg viewBox=\"0 0 320 300\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"320\" height=\"300\" rx=\"8\" fill=\"#f5f6f8\"/><polygon points=\"160.0,25.0 200.0,45.0 160.0,65.0 120.0,45.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,45.0 160.0,65.0 120.0,85.0 80.0,65.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,65.0 120.0,85.0 80.0,105.0 40.0,85.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,45.0 240.0,65.0 200.0,85.0 160.0,65.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,65.0 200.0,85.0 160.0,105.0 120.0,85.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,70.6 188.8,85.0 160.0,99.4 131.2,85.0\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"160.00000000000003\" y=\"91.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">黄·顶</text><polygon points=\"120.0,85.0 160.0,105.0 120.0,125.0 80.0,105.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,65.0 280.0,85.0 240.0,105.0 200.0,85.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,85.0 240.0,105.0 200.0,125.0 160.0,105.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,105.0 200.0,125.0 160.0,145.0 120.0,125.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,85.0 80.0,105.0 80.0,151.7 40.0,131.7\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,131.7 80.0,151.7 80.0,198.3 40.0,178.3\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,178.3 80.0,198.3 80.0,245.0 40.0,225.0\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,105.0 120.0,125.0 120.0,171.7 80.0,151.7\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,151.7 120.0,171.7 120.0,218.3 80.0,198.3\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"85.6,161.0 114.4,175.4 114.4,209.0 85.6,194.6\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"100\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">红·左</text><polygon points=\"80.0,198.3 120.0,218.3 120.0,265.0 80.0,245.0\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,125.0 160.0,145.0 160.0,191.7 120.0,171.7\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,171.7 160.0,191.7 160.0,238.3 120.0,218.3\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,218.3 160.0,238.3 160.0,285.0 120.0,265.0\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,85.0 280.0,131.7 240.0,151.7 240.0,105.0\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,105.0 240.0,151.7 200.0,171.7 200.0,125.0\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,125.0 200.0,171.7 160.0,191.7 160.0,145.0\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,131.7 280.0,178.3 240.0,198.3 240.0,151.7\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,151.7 240.0,198.3 200.0,218.3 200.0,171.7\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"234.4,161.0 234.4,194.6 205.6,209.0 205.6,175.4\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"220\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">绿·右</text><polygon points=\"200.0,171.7 200.0,218.3 160.0,238.3 160.0,191.7\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,178.3 280.0,225.0 240.0,245.0 240.0,198.3\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,198.3 240.0,245.0 200.0,265.0 200.0,218.3\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,218.3 200.0,265.0 160.0,285.0 160.0,238.3\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/></svg>",
+  "<svg viewBox=\"0 0 320 300\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"320\" height=\"300\" rx=\"8\" fill=\"#f5f6f8\"/><polygon points=\"160.0,25.0 200.0,45.0 160.0,65.0 120.0,45.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,45.0 160.0,65.0 120.0,85.0 80.0,65.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,65.0 120.0,85.0 80.0,105.0 40.0,85.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,45.0 240.0,65.0 200.0,85.0 160.0,65.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,65.0 200.0,85.0 160.0,105.0 120.0,85.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,70.6 188.8,85.0 160.0,99.4 131.2,85.0\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"160.00000000000003\" y=\"91.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">白·顶</text><polygon points=\"120.0,85.0 160.0,105.0 120.0,125.0 80.0,105.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,65.0 280.0,85.0 240.0,105.0 200.0,85.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,85.0 240.0,105.0 200.0,125.0 160.0,105.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,105.0 200.0,125.0 160.0,145.0 120.0,125.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,85.0 80.0,105.0 80.0,151.7 40.0,131.7\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,131.7 80.0,151.7 80.0,198.3 40.0,178.3\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,178.3 80.0,198.3 80.0,245.0 40.0,225.0\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,105.0 120.0,125.0 120.0,171.7 80.0,151.7\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,151.7 120.0,171.7 120.0,218.3 80.0,198.3\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"85.6,161.0 114.4,175.4 114.4,209.0 85.6,194.6\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"100\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">蓝·左</text><polygon points=\"80.0,198.3 120.0,218.3 120.0,265.0 80.0,245.0\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,125.0 160.0,145.0 160.0,191.7 120.0,171.7\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,171.7 160.0,191.7 160.0,238.3 120.0,218.3\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,218.3 160.0,238.3 160.0,285.0 120.0,265.0\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,85.0 280.0,131.7 240.0,151.7 240.0,105.0\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,105.0 240.0,151.7 200.0,171.7 200.0,125.0\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,125.0 200.0,171.7 160.0,191.7 160.0,145.0\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,131.7 280.0,178.3 240.0,198.3 240.0,151.7\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,151.7 240.0,198.3 200.0,218.3 200.0,171.7\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"234.4,161.0 234.4,194.6 205.6,209.0 205.6,175.4\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"220\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">橙·右</text><polygon points=\"200.0,171.7 200.0,218.3 160.0,238.3 160.0,191.7\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,178.3 280.0,225.0 240.0,245.0 240.0,198.3\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,198.3 240.0,245.0 200.0,265.0 200.0,218.3\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,218.3 200.0,265.0 160.0,285.0 160.0,238.3\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/></svg>"
+];
+function makeGuideCard(idx){
+  const card=document.createElement('div');
+  card.className='photoCard guideCard';
+  const names=[['黄·U','红·F','绿·R'],['白·D','蓝·L','橙·B']][idx];
+  const tag=document.createElement('div');
+  tag.className='photoTag';
+  tag.textContent=`第 ${idx+1} 张照片 · 拍摄对照`;
+  const cap=document.createElement('div');
+  cap.className='guideCap';
+  cap.innerHTML=`中心色应判为 <b>${names[0]}</b> / <b>${names[1]}</b> / <b>${names[2]}</b>，拍照时对照核对<br>照片上传后本对照图自动被覆盖`;
+  card.appendChild(tag);
+  const holder=document.createElement('div');
+  holder.innerHTML=GUIDE_SVG[idx];
+  card.appendChild(holder.firstElementChild);
+  card.appendChild(cap);
+  return card;
+}
 function rebuildPhotoDom(){
   photoArea.innerHTML='';
   photos.forEach((p,i)=>{
@@ -1050,6 +1077,7 @@ function rebuildPhotoDom(){
     p.cardEl=card; p.tagEl=tag;
   });
   if(!photos.length) photoArea.appendChild(dropZone);
+  for(let i=photos.length; i<2; i++) photoArea.appendChild(makeGuideCard(i));  // 未上传的照片槽位显示拍摄对照图
   dropZone.style.display = photos.length? 'none' : 'flex';
   photos.forEach(fitCanvas);
 }
@@ -2064,6 +2092,7 @@ function applyColor(name){
   renderFacelets(); render3D(); renderString(); renderStats();
   photos.forEach(redraw);
   clearSolveResult();
+  updateUI();   // 手动改色后重新评估 Solve / Generate 按钮可用状态
   toast(`${face} 面第 ${idx+1} 格已改为「${name}」`);
 }
 (function initColorPopup(){
