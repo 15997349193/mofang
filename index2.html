@@ -171,6 +171,8 @@
   .showSteps { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
     max-height: 92px; overflow-y: auto; padding: 2px; scrollbar-width: none; }
   .showSteps::-webkit-scrollbar { display: none; }
+  .showSteps .st { cursor: pointer; }
+  .showSteps .st:hover { outline: 2px solid rgba(255,255,255,.55); }
   .st { font-family: Consolas, monospace; font-size: 13px; padding: 5px 9px; border-radius: 8px;
     background: rgba(255,255,255,.06); color: #7b8bb4; border: 1px solid transparent;
     transition: all .2s ease; user-select: none; cursor: default; }
@@ -223,6 +225,7 @@
         <button id="btnResetPhoto" disabled>重选本照片的角点</button>
         <button id="btnNextPhoto" class="primary" style="display:none">录入下一张照片 →</button>
         <button id="btnClearAll">清空全部已识别数据</button>
+        <button id="btnAnim">⚡ 映射动画：开</button>
         <span class="hint" style="margin-left:auto">支持拖拽图片、Ctrl+V 粘贴</span>
         <input type="file" id="fileInput" accept="image/*" class="sr-file">
         <label for="fileInput" class="btn-file">选择照片</label>
@@ -360,6 +363,7 @@
       <button class="primary" id="showPlay">暂停</button>
       <button id="showNext">下一步 ›</button>
       <button id="showAgain">重播</button>
+      <button id="showVoice">🔊 语音：开</button>
     </div>
     <div class="showBar"><i id="showBarFill"></i></div>
   </div>
@@ -1006,6 +1010,8 @@ function mk9(){return new Array(9).fill(null);}
 const $=id=>document.getElementById(id);
 const photoArea=$('photoArea'), dropZone=$('dropZone');
 const PHASE_NAMES=['照片上方的面（顶面）','照片左侧的面','照片右侧的面'];
+/* 两张照片的固定拍摄姿态（与对照图一致）：照片1 = 黄U顶/红F左/绿R右，照片2 = 白D顶/蓝L左/橙B右 */
+const EXPECTED_POSE=[{T:'U',L:'F',R:'R'},{T:'D',L:'L',R:'B'}];
 
 /* ============ 照片会话管理 ============ */
 function loadImageFile(file){
@@ -1044,8 +1050,8 @@ function replacePhotoImage(p, im){
 }
 /* ---- 拍摄对照图（等轴测魔方视图，中心色圈注；照片上传后自动被覆盖） ---- */
 const GUIDE_SVG = [
-  "<svg viewBox=\"0 0 320 300\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"320\" height=\"300\" rx=\"8\" fill=\"#f5f6f8\"/><polygon points=\"160.0,25.0 200.0,45.0 160.0,65.0 120.0,45.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,45.0 160.0,65.0 120.0,85.0 80.0,65.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,65.0 120.0,85.0 80.0,105.0 40.0,85.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,45.0 240.0,65.0 200.0,85.0 160.0,65.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,65.0 200.0,85.0 160.0,105.0 120.0,85.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,70.6 188.8,85.0 160.0,99.4 131.2,85.0\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"160.00000000000003\" y=\"91.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">黄·顶</text><polygon points=\"120.0,85.0 160.0,105.0 120.0,125.0 80.0,105.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,65.0 280.0,85.0 240.0,105.0 200.0,85.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,85.0 240.0,105.0 200.0,125.0 160.0,105.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,105.0 200.0,125.0 160.0,145.0 120.0,125.0\" fill=\"#ffd400\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,85.0 80.0,105.0 80.0,151.7 40.0,131.7\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,131.7 80.0,151.7 80.0,198.3 40.0,178.3\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,178.3 80.0,198.3 80.0,245.0 40.0,225.0\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,105.0 120.0,125.0 120.0,171.7 80.0,151.7\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,151.7 120.0,171.7 120.0,218.3 80.0,198.3\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"85.6,161.0 114.4,175.4 114.4,209.0 85.6,194.6\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"100\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">红·左</text><polygon points=\"80.0,198.3 120.0,218.3 120.0,265.0 80.0,245.0\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,125.0 160.0,145.0 160.0,191.7 120.0,171.7\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,171.7 160.0,191.7 160.0,238.3 120.0,218.3\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,218.3 160.0,238.3 160.0,285.0 120.0,265.0\" fill=\"#b01c24\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,85.0 280.0,131.7 240.0,151.7 240.0,105.0\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,105.0 240.0,151.7 200.0,171.7 200.0,125.0\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,125.0 200.0,171.7 160.0,191.7 160.0,145.0\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,131.7 280.0,178.3 240.0,198.3 240.0,151.7\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,151.7 240.0,198.3 200.0,218.3 200.0,171.7\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"234.4,161.0 234.4,194.6 205.6,209.0 205.6,175.4\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"220\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">绿·右</text><polygon points=\"200.0,171.7 200.0,218.3 160.0,238.3 160.0,191.7\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,178.3 280.0,225.0 240.0,245.0 240.0,198.3\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,198.3 240.0,245.0 200.0,265.0 200.0,218.3\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,218.3 200.0,265.0 160.0,285.0 160.0,238.3\" fill=\"#009860\" stroke=\"#20242c\" stroke-width=\"1.5\"/></svg>",
-  "<svg viewBox=\"0 0 320 300\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"320\" height=\"300\" rx=\"8\" fill=\"#f5f6f8\"/><polygon points=\"160.0,25.0 200.0,45.0 160.0,65.0 120.0,45.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,45.0 160.0,65.0 120.0,85.0 80.0,65.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,65.0 120.0,85.0 80.0,105.0 40.0,85.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,45.0 240.0,65.0 200.0,85.0 160.0,65.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,65.0 200.0,85.0 160.0,105.0 120.0,85.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,70.6 188.8,85.0 160.0,99.4 131.2,85.0\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"160.00000000000003\" y=\"91.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">白·顶</text><polygon points=\"120.0,85.0 160.0,105.0 120.0,125.0 80.0,105.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,65.0 280.0,85.0 240.0,105.0 200.0,85.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,85.0 240.0,105.0 200.0,125.0 160.0,105.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"160.0,105.0 200.0,125.0 160.0,145.0 120.0,125.0\" fill=\"#f2f3f5\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,85.0 80.0,105.0 80.0,151.7 40.0,131.7\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,131.7 80.0,151.7 80.0,198.3 40.0,178.3\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"40.0,178.3 80.0,198.3 80.0,245.0 40.0,225.0\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,105.0 120.0,125.0 120.0,171.7 80.0,151.7\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"80.0,151.7 120.0,171.7 120.0,218.3 80.0,198.3\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"85.6,161.0 114.4,175.4 114.4,209.0 85.6,194.6\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"100\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">蓝·左</text><polygon points=\"80.0,198.3 120.0,218.3 120.0,265.0 80.0,245.0\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,125.0 160.0,145.0 160.0,191.7 120.0,171.7\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,171.7 160.0,191.7 160.0,238.3 120.0,218.3\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"120.0,218.3 160.0,238.3 160.0,285.0 120.0,265.0\" fill=\"#1a54a8\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,85.0 280.0,131.7 240.0,151.7 240.0,105.0\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,105.0 240.0,151.7 200.0,171.7 200.0,125.0\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,125.0 200.0,171.7 160.0,191.7 160.0,145.0\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,131.7 280.0,178.3 240.0,198.3 240.0,151.7\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,151.7 240.0,198.3 200.0,218.3 200.0,171.7\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"234.4,161.0 234.4,194.6 205.6,209.0 205.6,175.4\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"220\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">橙·右</text><polygon points=\"200.0,171.7 200.0,218.3 160.0,238.3 160.0,191.7\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"280.0,178.3 280.0,225.0 240.0,245.0 240.0,198.3\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"240.0,198.3 240.0,245.0 200.0,265.0 200.0,218.3\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/><polygon points=\"200.0,218.3 200.0,265.0 160.0,285.0 160.0,238.3\" fill=\"#ff620e\" stroke=\"#20242c\" stroke-width=\"1.5\"/></svg>"
+  "<svg viewBox=\"0 0 320 300\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"320\" height=\"300\" rx=\"8\" fill=\"#f5f6f8\"/><polygon points=\"160.0,25.0 200.0,45.0 160.0,65.0 120.0,45.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,45.0 160.0,65.0 120.0,85.0 80.0,65.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"80.0,65.0 120.0,85.0 80.0,105.0 40.0,85.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,45.0 240.0,65.0 200.0,85.0 160.0,65.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"160.0,65.0 200.0,85.0 160.0,105.0 120.0,85.0\" fill=\"#ffd400\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"160.0,70.6 188.8,85.0 160.0,99.4 131.2,85.0\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"160.00000000000003\" y=\"91.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">黄·顶</text><polygon points=\"120.0,85.0 160.0,105.0 120.0,125.0 80.0,105.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,65.0 280.0,85.0 240.0,105.0 200.0,85.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,85.0 240.0,105.0 200.0,125.0 160.0,105.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"160.0,105.0 200.0,125.0 160.0,145.0 120.0,125.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"40.0,85.0 80.0,105.0 80.0,151.7 40.0,131.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"40.0,131.7 80.0,151.7 80.0,198.3 40.0,178.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"40.0,178.3 80.0,198.3 80.0,245.0 40.0,225.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"80.0,105.0 120.0,125.0 120.0,171.7 80.0,151.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"80.0,151.7 120.0,171.7 120.0,218.3 80.0,198.3\" fill=\"#b01c24\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"85.6,161.0 114.4,175.4 114.4,209.0 85.6,194.6\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"100\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">红·左</text><polygon points=\"80.0,198.3 120.0,218.3 120.0,265.0 80.0,245.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,125.0 160.0,145.0 160.0,191.7 120.0,171.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,171.7 160.0,191.7 160.0,238.3 120.0,218.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,218.3 160.0,238.3 160.0,285.0 120.0,265.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"280.0,85.0 280.0,131.7 240.0,151.7 240.0,105.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,105.0 240.0,151.7 200.0,171.7 200.0,125.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,125.0 200.0,171.7 160.0,191.7 160.0,145.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"280.0,131.7 280.0,178.3 240.0,198.3 240.0,151.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,151.7 240.0,198.3 200.0,218.3 200.0,171.7\" fill=\"#009860\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"234.4,161.0 234.4,194.6 205.6,209.0 205.6,175.4\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"220\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">绿·右</text><polygon points=\"200.0,171.7 200.0,218.3 160.0,238.3 160.0,191.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"280.0,178.3 280.0,225.0 240.0,245.0 240.0,198.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,198.3 240.0,245.0 200.0,265.0 200.0,218.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,218.3 200.0,265.0 160.0,285.0 160.0,238.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/></svg>",
+  "<svg viewBox=\"0 0 320 300\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"320\" height=\"300\" rx=\"8\" fill=\"#f5f6f8\"/><polygon points=\"160.0,25.0 200.0,45.0 160.0,65.0 120.0,45.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,45.0 160.0,65.0 120.0,85.0 80.0,65.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"80.0,65.0 120.0,85.0 80.0,105.0 40.0,85.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,45.0 240.0,65.0 200.0,85.0 160.0,65.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"160.0,65.0 200.0,85.0 160.0,105.0 120.0,85.0\" fill=\"#f2f3f5\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"160.0,70.6 188.8,85.0 160.0,99.4 131.2,85.0\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"160.00000000000003\" y=\"91.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">白·顶</text><polygon points=\"120.0,85.0 160.0,105.0 120.0,125.0 80.0,105.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,65.0 280.0,85.0 240.0,105.0 200.0,85.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,85.0 240.0,105.0 200.0,125.0 160.0,105.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"160.0,105.0 200.0,125.0 160.0,145.0 120.0,125.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"40.0,85.0 80.0,105.0 80.0,151.7 40.0,131.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"40.0,131.7 80.0,151.7 80.0,198.3 40.0,178.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"40.0,178.3 80.0,198.3 80.0,245.0 40.0,225.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"80.0,105.0 120.0,125.0 120.0,171.7 80.0,151.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"80.0,151.7 120.0,171.7 120.0,218.3 80.0,198.3\" fill=\"#1a54a8\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"85.6,161.0 114.4,175.4 114.4,209.0 85.6,194.6\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"100\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">蓝·左</text><polygon points=\"80.0,198.3 120.0,218.3 120.0,265.0 80.0,245.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,125.0 160.0,145.0 160.0,191.7 120.0,171.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,171.7 160.0,191.7 160.0,238.3 120.0,218.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"120.0,218.3 160.0,238.3 160.0,285.0 120.0,265.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"280.0,85.0 280.0,131.7 240.0,151.7 240.0,105.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,105.0 240.0,151.7 200.0,171.7 200.0,125.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,125.0 200.0,171.7 160.0,191.7 160.0,145.0\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"280.0,131.7 280.0,178.3 240.0,198.3 240.0,151.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,151.7 240.0,198.3 200.0,218.3 200.0,171.7\" fill=\"#ff620e\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"234.4,161.0 234.4,194.6 205.6,209.0 205.6,175.4\" fill=\"none\" stroke=\"#20242c\" stroke-width=\"2.5\"/><text x=\"220\" y=\"191.0\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"Microsoft YaHei,sans-serif\" fill=\"#ffffff\" stroke=\"#20242c\" stroke-width=\"3\" paint-order=\"stroke\">橙·右</text><polygon points=\"200.0,171.7 200.0,218.3 160.0,238.3 160.0,191.7\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"280.0,178.3 280.0,225.0 240.0,245.0 240.0,198.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"240.0,198.3 240.0,245.0 200.0,265.0 200.0,218.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/><polygon points=\"200.0,218.3 200.0,265.0 160.0,285.0 160.0,238.3\" fill=\"#c9ced6\" stroke=\"#565d68\" stroke-width=\"1.5\"/></svg>"
 ];
 function makeGuideCard(idx){
   const card=document.createElement('div');
@@ -1056,7 +1062,7 @@ function makeGuideCard(idx){
   tag.textContent=`第 ${idx+1} 张照片 · 拍摄对照`;
   const cap=document.createElement('div');
   cap.className='guideCap';
-  cap.innerHTML=`中心色应判为 <b>${names[0]}</b> / <b>${names[1]}</b> / <b>${names[2]}</b>，拍照时对照核对<br>照片上传后本对照图自动被覆盖`;
+  cap.innerHTML=`中心块颜色（彩色圈注）拍照时应与之一致，其余块灰色示意<br>照片上传后本对照图自动被覆盖`;
   card.appendChild(tag);
   const holder=document.createElement('div');
   holder.innerHTML=GUIDE_SVG[idx];
@@ -1134,11 +1140,7 @@ function completeFace(p){
   const rgb=medianColor(p,Math.round(cx*p.scale),Math.round(cy*p.scale),rC);
   const name=classify(rgb);
   const letter=COLOR_TO_FACE[name];
-  // 同一张照片里两个面不能同色（中心色判重）
-  if(p.quads.some(q=>q&&q.letter===letter)){
-    toast(`中心色判为「${name}」（${letter} 面），与本照片另一个面重复——请检查光线后重选本照片角点`);
-    p.clicks=[]; return;
-  }
+  // 中心色不再由识别决定：字母先按识别值占位，finalizePhoto 按固定拍摄姿态校正，识别值仅用于姿态核对
   p.quads[p.phaseIdx]={pts:p.clicks.map(q=>q.slice()), letter, centerName:name, cx, cy};
   p.clicks=[]; p.phaseIdx++;
   if(p.phaseIdx===3) finalizePhoto(p);
@@ -1150,6 +1152,18 @@ function finalizePhoto(p){
   const byY=[...info].sort((a,b)=>a.cy-b.cy);
   const tq=byY[0];
   const [lq,rq]=byY.slice(1).sort((a,b)=>a.cx-b.cx);
+  // ---- 中心块固定：面字母由拍摄姿态决定，中心色按已知写入；识别结果仅用于姿态核对 ----
+  const photoIdx=photos.indexOf(p);
+  let centerMismatches=[];
+  if(photoIdx>=0 && photoIdx<EXPECTED_POSE.length){
+    const pe=EXPECTED_POSE[photoIdx];
+    for(const [it,role,roleName] of [[tq,'T','顶面'],[lq,'L','左面'],[rq,'R','右面']]){
+      const q=it.q, exp=pe[role];
+      q.recLetter=q.letter;
+      if(q.letter!==exp) centerMismatches.push(`${roleName}应为 ${exp}·${FACE_TO_NAME[exp]}，识别为 ${q.letter}·${FACE_TO_NAME[q.letter]}`);
+      q.letter=exp; q.centerName=FACE_TO_NAME[exp];
+    }
+  }
   const T=tq.q.letter, A=lq.q.letter, B=rq.q.letter;
   if(!validCorner(T,A,B)){
     toast(`三个面字母 ${T}/${A}/${B} 不构成共享一个角的相邻组合，颜色识别可能有误，请重选本照片角点`);
@@ -1171,8 +1185,96 @@ function finalizePhoto(p){
     : `照片 ${photos.length} 录入完成（已录 ${doneFaces}/6 面）。转动魔方后点「录入下一张照片」继续`;
   if(p.auto) msg=`自动识别完成：${T}/${A}/${B} 三面（已录 ${doneFaces}/6 面）`;
   if(ov.length) msg+=`；注意 ${ov.join('、')} 面此前已录入，本次数据已覆盖`;
+  if(centerMismatches.length) msg+=`；⚠ 中心核对：${centerMismatches.join('；')}——请核对拍照姿态是否与对照图一致`;
   if(worstErr>0) toast(msg+'（角点匹配误差偏高，可拖动角点微调）');
   else toast(msg);
+  playMapAnim(p,[T,A,B]);   // 三面圈注完成 → 闪电映射动画（照片 → 3D 预览 / 展开图）
+}
+
+/* ---- 标注完成映射动画：闪电箭头从照片各面同时射向 3D 预览与展开图（约 1 秒，可开关） ---- */
+let animOn=true, animToken=0;
+function playMapAnim(p, letters){
+  if(!animOn) return;
+  if(!document.getElementById('mapAnimCanvas')){
+    const c=document.createElement('canvas');
+    c.id='mapAnimCanvas';
+    c.style.cssText='position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:9999';
+    document.body.appendChild(c);
+  }
+  const cv=document.getElementById('mapAnimCanvas');
+  const dpr=window.devicePixelRatio||1;
+  cv.width=innerWidth*dpr; cv.height=innerHeight*dpr;
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const rect=p.cv.getBoundingClientRect();
+  const bolts=[];
+  for(const L of letters){
+    const qd=p.quads.find(q=>q&&q.letter===L); if(!qd) continue;
+    const sx=rect.left+qd.cx*p.scale, sy=rect.top+qd.cy*p.scale;
+    const ends=[];
+    const d3=$('f'+L).getBoundingClientRect();
+    if(d3.width) ends.push([d3.left+d3.width/2, d3.top+d3.height/2]);
+    const svg=$('faceletView');
+    if(svg){
+      const sr=svg.getBoundingClientRect();
+      const poly=cellPoly(L,1,1);
+      const cxv=poly.reduce((a,pt)=>a+pt[0],0)/4, cyv=poly.reduce((a,pt)=>a+pt[1],0)/4;
+      ends.push([sr.left+cxv*sr.width/500, sr.top+cyv*sr.height/380]);
+    }
+    for(const [tx,ty] of ends){
+      const dx=tx-sx, dy=ty-sy, len=Math.hypot(dx,dy)||1;
+      const px=-dy/len, py=dx/len, pts=[[sx,sy]], n=8;
+      for(let k=1;k<n;k++){
+        const t=k/n;
+        const off=(Math.random()-0.5)*len*0.10*(1-Math.abs(t-0.5)*1.2);
+        pts.push([sx+dx*t+px*off, sy+dy*t+py*off]);
+      }
+      pts.push([tx,ty]);
+      bolts.push({pts, tx, ty});
+    }
+  }
+  if(!bolts.length) return;
+  const token=++animToken, t0=performance.now(), DUR=1000;
+  (function frame(now){
+    if(token!==animToken){ ctx.clearRect(0,0,innerWidth,innerHeight); return; }
+    const t=Math.min(1,(now-t0)/DUR);
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    for(const b of bolts){
+      const reveal=Math.min(1, t/0.55);
+      const alpha=t<0.75 ? 0.85+0.15*Math.sin(now/28) : 1-(t-0.75)/0.25;
+      const seg=b.pts.slice(0, Math.max(2, Math.ceil(b.pts.length*reveal)));
+      ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.shadowColor='rgba(255,214,90,.95)'; ctx.shadowBlur=18;
+      ctx.strokeStyle=`rgba(255,220,120,${0.55*alpha})`; ctx.lineWidth=6;
+      ctx.beginPath(); ctx.moveTo(seg[0][0],seg[0][1]);
+      for(const pt of seg.slice(1)) ctx.lineTo(pt[0],pt[1]);
+      ctx.stroke();
+      ctx.shadowBlur=8;
+      ctx.strokeStyle=`rgba(255,255,255,${alpha})`; ctx.lineWidth=2.2;
+      ctx.stroke();
+      ctx.shadowBlur=10;
+      ctx.strokeStyle=`rgba(255,220,120,${0.8*alpha})`; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(seg[0][0],seg[0][1],9,0,Math.PI*2); ctx.stroke();
+      if(reveal>=1){
+        const last=seg[seg.length-1], prev=seg[seg.length-2];
+        const a=Math.atan2(last[1]-prev[1], last[0]-prev[0]);
+        ctx.save(); ctx.translate(b.tx,b.ty); ctx.rotate(a);
+        ctx.fillStyle=`rgba(255,255,255,${alpha})`;
+        ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-6,6); ctx.lineTo(-6,-6); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        const pt2=(t-0.55)/0.45;
+        for(const k of [0,0.5]){
+          const q2=pt2-k*0.35; if(q2<0||q2>1) continue;
+          ctx.beginPath();
+          ctx.arc(b.tx,b.ty, 10+q2*26, 0, Math.PI*2);
+          ctx.strokeStyle=`rgba(255,220,120,${(1-q2)*0.9})`;
+          ctx.lineWidth=3;
+          ctx.stroke();
+        }
+      }
+    }
+    if(t<1) requestAnimationFrame(frame);
+    else { animToken++; ctx.clearRect(0,0,innerWidth,innerHeight); }
+  })(t0);
 }
 function resampleFace(p, letter){
   const g=p.grids[letter]; if(!g) return;
@@ -1830,12 +1932,7 @@ function autoDetectPhoto(p){
     const rC=Math.max(3, Math.round(side*0.10*p.scale));
     const rgb=medianColor(p, Math.round(cx*p.scale), Math.round(cy*p.scale), rC);
     const name=classify(rgb);
-    const letter=COLOR_TO_FACE[name];
-    if(quads.some(q=>q.letter===letter)){
-      toast(`自动识别出的面中心色重复（都判成「${name}」），请手动点角点`);
-      p.quads=[null,null,null]; p.phaseIdx=0; p.grids={}; p.auto=false;
-      return false;
-    }
+    const letter=COLOR_TO_FACE[name];   // 仅用于姿态核对，finalizePhoto 会按固定姿态校正
     quads.push({pts:corners, letter, centerName:name, cx, cy, hits:f.hits||0});
   }
   // 只认出 1~2 个面也照用：先把它们占位（画成提示框），剩下的面让用户点角补上
@@ -1935,6 +2032,11 @@ $('btnResetPhoto').addEventListener('click',()=>{
   p.quads=[null,null,null]; p.clicks=[]; p.phaseIdx=0; p.grids={}; p.auto=false;
   updateUI(); redraw(p);
   toast('已切到手动模式：请依次点三个面的 4 个角');
+});
+$('btnAnim').addEventListener('click',()=>{
+  animOn=!animOn;
+  $('btnAnim').textContent=animOn?'⚡ 映射动画：开':'⚡ 映射动画：关';
+  toast(animOn?'映射动画已开启':'映射动画已关闭');
 });
 $('btnNextPhoto').addEventListener('click',()=>{
   document.getElementById('fileInput').click();
@@ -2556,7 +2658,7 @@ function turnAnim(st){
     const ax=[a[0],-a[1],a[2]];          // 数学坐标 → CSS 坐标（y 取反）
     const total=90*st.times;             // 顺时针为正
     const layer=layerOf(a);
-    const S=stage.cs, dur=700, t0=performance.now();
+    const S=stage.cs, dur=SHOW_STEP_MS-700, t0=performance.now();
     function frame(now){
       const k=Math.min(1,(now-t0)/dur);
       const e=k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
@@ -2604,6 +2706,20 @@ function updateShowUI(){
     try{ cur.scrollIntoView({block:'nearest', inline:'center'}); }catch(e){}
   }
 }
+const SHOW_STEP_MS = 2000;   // 每步总时长约 2 秒（亮层 200ms + 转动 1300ms + 停顿 500ms）
+/* ---- 语音播报：每步开始时朗读公式字母（浏览器自带语音，可开关） ---- */
+let voiceOn=true;
+function speakToken(tok){
+  if(!voiceOn || !('speechSynthesis' in window)) return;
+  try{
+    speechSynthesis.cancel();
+    const txt=String(tok).replace(/[\u2032']/," prime").replace("2"," two");
+    const u=new SpeechSynthesisUtterance(txt);
+    u.lang='en-US'; u.rate=0.95;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function stopSpeak(){ try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} }
 async function runShow(fromStart){
   const my=++stage.token;
   stage.playing=true;
@@ -2617,9 +2733,10 @@ async function runShow(fromStart){
     if(stage.paused){ await wait(120); continue; }
     stage.idx++;
     updateShowUI();
+    speakToken(stage.steps[stage.idx].token);
     const st=stage.steps[stage.idx];
     setLayerHL(st.face,true);
-    await wait(110);                       // 先亮起要转的那一层
+    await wait(200);                       // 先亮起要转的那一层
     if(!stage.open || my!==stage.token) return;
     await turnAnim(st);                    // 约 0.7s 转动
     if(!stage.open || my!==stage.token) return;
@@ -2627,7 +2744,7 @@ async function runShow(fromStart){
     resetShowTransforms();
     paintCubies();
     setLayerHL(st.face,false);
-    await wait(190);                       // 停顿，凑满每步约 1 秒
+    await wait(500);                       // 停顿，凑满每步约 2 秒
   }
   if(!stage.open || my!==stage.token) return;
   stage.playing=false; stage.done=true;
@@ -2642,6 +2759,7 @@ async function stepOnce(){
   $('showPlay').textContent='继续';
   stage.idx++;
   updateShowUI();
+  speakToken(stage.steps[stage.idx].token);
   const st=stage.steps[stage.idx];
   setLayerHL(st.face,true);
   await wait(80);
@@ -2668,6 +2786,14 @@ function jumpTo(n){
   if(stage.done) stage.idx=stage.steps.length;
   updateShowUI();
 }
+function startFrom(i){
+  if(!stage.open) return;
+  stopSpeak();
+  jumpTo(i-1);
+  stage.paused=false;
+  $('showPlay').textContent='暂停';
+  if(!stage.playing) runShow(false);
+}
 function openShowStage(alg){
   const steps=parseShowSteps(alg);
   if(!steps.length){ toast('没有可演示的步骤'); return; }
@@ -2677,9 +2803,11 @@ function openShowStage(alg){
   renderShowCube();
   $('showAlgText').textContent=alg;
   const box=$('showSteps'); box.innerHTML='';
-  steps.forEach(s=>{
+  steps.forEach((s,si)=>{
     const el=document.createElement('span');
     el.className='st'; el.textContent=s.token;
+    el.title='点击：魔方摆到这一步之前，并从此步开始演示';
+    el.addEventListener('click',()=>startFrom(si));
     box.appendChild(el);
   });
   updateShowUI();
@@ -2693,6 +2821,7 @@ function openShowStage(alg){
 function closeShowStage(){
   stage.token++;
   stage.open=false; stage.playing=false;
+  stopSpeak();
   $('showStage').classList.remove('on');
   document.body.style.overflow='';
   setTimeout(()=>{ if(!stage.open) $('showStage').hidden=true; },320);
@@ -2702,12 +2831,19 @@ $('showPlay').addEventListener('click',()=>{
   if(!stage.open) return;
   if(stage.done){ runShow(true); return; }
   stage.paused=!stage.paused;
+  if(stage.paused) stopSpeak();
   $('showPlay').textContent=stage.paused?'继续':'暂停';
   if(!stage.playing && !stage.paused){ runShow(false); }
 });
 $('showNext').addEventListener('click',()=>{ if(stage.open) stepOnce(); });
 $('showPrev').addEventListener('click',()=>{ if(stage.open) jumpTo(stage.idx-1); });
 $('showAgain').addEventListener('click',()=>{ if(stage.open) runShow(true); });
+$('showVoice').addEventListener('click',()=>{
+  voiceOn=!voiceOn;
+  if(!voiceOn) stopSpeak();
+  $('showVoice').textContent=voiceOn?'🔊 语音：开':'🔇 语音：关';
+  toast(voiceOn?'语音播报已开启':'语音播报已关闭');
+});
 $('btnShowAnim').addEventListener('click',()=>{
   const t=($('algSolve').textContent||'').trim();
   if(!t || t==='—' || t.indexOf('（')===0){ toast('还没有还原公式，先点 Solve'); return; }
@@ -2726,6 +2862,7 @@ window.addEventListener('resize',()=>{
   renderShowCube();
 });
 
+rebuildPhotoDom();   // 页面打开即显示两张拍摄对照图
 updateUI();
 </script>
 </body>
