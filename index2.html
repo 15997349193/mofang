@@ -109,7 +109,8 @@
   .toast.show { opacity: .95; }
 
   /* ===== 还原动画演示舞台（教学：大字步骤 + 3D 同步转动） ===== */
-  #showStage { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column;
+  #showStage { position: fixed; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%;
+    inset: 0; z-index: 200; display: flex; flex-direction: column;
     background: radial-gradient(120% 90% at 50% 0%, #1a2440 0%, #0a0e17 58%, #04060a 100%);
     color: #eef2ff; opacity: 0; visibility: hidden; pointer-events: none;
     transition: opacity .3s ease, visibility 0s linear .3s; overflow: hidden;
@@ -118,7 +119,8 @@
   #showStage::before { content: ""; position: absolute; left: 50%; top: 47%; width: 130vmin; height: 130vmin;
     transform: translate(-50%, -50%); pointer-events: none;
     background: radial-gradient(circle, rgba(74,222,128,.15), rgba(74,222,128,0) 62%); }
-  #showStage::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .3;
+  #showStage::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0;
+    pointer-events: none; opacity: .3;
     background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
                       linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
     background-size: 58px 58px;
@@ -137,22 +139,23 @@
   .showNow { text-align: center; position: relative; z-index: 3; padding: 2px 16px 0; }
   .nowBadge { font-size: 12px; color: #7b8bb4; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
   .nowRow { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 2px; }
-  .nowLetter { font-size: clamp(52px, 8.6vmin, 92px); font-weight: 800; line-height: 1.02; letter-spacing: -2px;
+  .nowLetter { font-size: 76px; font-size: clamp(52px, 8.6vmin, 92px); font-weight: 800; line-height: 1.02; letter-spacing: -2px;
     background: linear-gradient(180deg, #ffffff 20%, #7ee7a8 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
     filter: drop-shadow(0 0 26px rgba(74,222,128,.5)); }
   .nowLetter.fin { letter-spacing: 0; }
-  .nowArrow { width: clamp(34px, 4.6vmin, 50px); height: clamp(34px, 4.6vmin, 50px); color: #7ee7a8;
+  .nowArrow { width: 46px; height: 46px; width: clamp(34px, 4.6vmin, 50px); height: clamp(34px, 4.6vmin, 50px); color: #7ee7a8;
     opacity: .95; filter: drop-shadow(0 0 12px rgba(74,222,128,.6)); transition: transform .25s; }
   .nowArrow svg { width: 100%; height: 100%; display: block; }
   .nowArrow.off { opacity: .18; }
-  .nowLabel { font-size: clamp(15px, 2.1vmin, 20px); color: #c9d6f5; margin-top: 4px; letter-spacing: .5px; }
+  .nowLabel { font-size: 18px; font-size: clamp(15px, 2.1vmin, 20px); color: #c9d6f5; margin-top: 4px; letter-spacing: .5px; }
   .nowLabel b { color: #7ee7a8; font-weight: 700; }
   .nowLabel em { font-style: normal; color: #ffd400; font-weight: 700; }
 
   .showCube { flex: 1; display: flex; align-items: center; justify-content: center; position: relative;
     min-height: 0; z-index: 2; }
-  .showScene { position: relative; width: min(58vmin, 520px); height: min(52vmin, 470px);
+  .showScene { position: relative; width: 520px; height: 470px;
+    width: min(58vmin, 520px); height: min(52vmin, 470px);
     perspective: 1500px; perspective-origin: 50% 46%; }
   #showCubeRoot { position: absolute; left: 50%; top: 50%; width: 0; height: 0;
     transform-style: preserve-3d; transform: rotateX(-24deg) rotateY(-34deg); }
@@ -163,7 +166,8 @@
     border-radius: calc(var(--cs) * .13); background: #0b0d12;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,.6); backface-visibility: hidden; }
   .cb.hl .cf { box-shadow: inset 0 0 0 2px rgba(255,255,255,.92); filter: brightness(1.3) saturate(1.15); }
-  .showFloor { position: absolute; left: 50%; bottom: 6%; width: min(46vmin, 400px); height: 46px;
+  .showFloor { position: absolute; left: 50%; bottom: 6%; width: 400px; width: min(46vmin, 400px);
+    height: 46px;
     transform: translateX(-50%); pointer-events: none;
     background: radial-gradient(ellipse at 50% 50%, rgba(94,234,212,.22), rgba(94,234,212,0) 70%);
     filter: blur(6px); }
@@ -193,6 +197,14 @@
     margin-top: 13px; overflow: hidden; }
   .showBar i { display: block; height: 100%; width: 0; border-radius: 4px;
     background: linear-gradient(90deg, #4ade80, #a7f3c4); transition: width .3s ease; }
+
+  /* 旧内核不支持 flex gap（教学一体机 360/旧 Edge）→ 用 margin 兜底 */
+  @supports not (gap: 1px) {
+    .showTop > * + * { margin-left: 12px; }
+    .nowRow > * + * { margin-left: 18px; }
+    .showSteps > * + * { margin-left: 6px; }
+    .showCtl > * + * { margin-left: 9px; }
+  }
 
   @media (max-width: 720px) {
     .showTop { padding: 12px 14px 0; }
@@ -298,7 +310,7 @@
         <button id="btnCopyGen" disabled>复制</button>
       </div>
       <div class="row" style="margin-top:8px">
-        <button id="btnShowAnim" disabled>▶ 播放还原动画（教学演示）</button>
+        <button id="btnShowAnim" title="没有公式时会自动先计算，算完自动播放">▶ 播放还原动画（教学演示）</button>
         <span class="hint">逐步大字提示「转哪一层 · 往哪转」，3D 模型同步转动，每步 1 秒</span>
       </div>
       <div class="algMeta" id="solveStatus">还原公式 = 把当前视图拧回六面同色；生成公式 = 把复原的魔方拧成当前视图。两者互为逆公式。</div>
@@ -2049,7 +2061,7 @@ $('btnClearAll').addEventListener('click',()=>{
   solverCache={key:null,mode:null,res:null};
   $('algSolve').textContent='—'; $('algGen').textContent='—';
   $('btnCopySolve').disabled=true; $('btnCopyGen').disabled=true;
-  $('btnShowAnim').disabled=true;
+  $('btnShowAnim').disabled=false;   // 始终可点：没有公式时点击会自动先求解
   updateUI(); photos.forEach(redraw);
   toast('已清空全部识别数据');
 });
@@ -2393,7 +2405,7 @@ function clearSolveResult(msg){
   solverCache={key:null, mode:null, res:null};
   $('algSolve').textContent='—'; $('algGen').textContent='—';
   $('btnCopySolve').disabled=true; $('btnCopyGen').disabled=true;
-  $('btnShowAnim').disabled=true;
+  $('btnShowAnim').disabled=false;   // 始终可点：没有公式时点击会自动先求解
   setSolveStatus(msg||'格子改动过，重新点 Solve / Generate 生成新公式。');
 }
 function solveReady(){ return renderString().indexOf('?')<0; }
@@ -2453,7 +2465,7 @@ function finishSolve(r, focus){
   $('rowGen').classList.toggle('hl', focus==='gen');
   $('btnCopySolve').disabled=!alg;
   $('btnCopyGen').disabled=!inv;
-  $('btnShowAnim').disabled=!alg;
+  $('btnShowAnim').disabled=false;
   const n=alg? alg.split(/\s+/).length : 0;
   const extra=(res.buildMs? ` · 建表 ${res.buildMs}ms`:'');
   setSolveStatus(`${SOLVE_MODE==='opt'?'最优':'快速'}模式：${n} 步 · 计算 ${res.ms}ms${extra}`+
@@ -2877,7 +2889,11 @@ function openShowStage(alg){
   document.body.style.overflow='hidden';
   stage.open=true;
   $('showPlay').textContent='暂停';
-  requestAnimationFrame(()=>{ $('showStage').classList.add('on'); });
+  // 直接加 on 类（覆盖层始终参与布局，transition 照常生效）；rAF 在部分旧内核/隐藏状态下不回调，
+  // 只用它做“首帧后再放大”会有画面一直不出现的风险，这里改为立即加 + 定时兜底
+  const stEl=$('showStage');
+  stEl.classList.add('on');
+  setTimeout(()=>{ if(stage.open) stEl.classList.add('on'); }, 80);
   setTimeout(()=>{ if(stage.open) runShow(false); },260);
 }
 function closeShowStage(){
@@ -2908,8 +2924,12 @@ $('showVoice').addEventListener('click',()=>{
 });
 $('btnShowAnim').addEventListener('click',()=>{
   const t=($('algSolve').textContent||'').trim();
-  if(!t || t==='—' || t.indexOf('（')===0){ toast('还没有还原公式，先点 Solve'); return; }
-  openShowStage(t);
+  if(t && t!=='—' && t.indexOf('（')!==0){ openShowStage(t); return; }
+  // 没有公式：先自动求解，finishSolve 成功后会自动进入动画演示
+  if(solverBusy){ toast('正在计算公式，请稍候…'); return; }
+  if(!solveReady()){ toast('还有未录入的格子（编码里有 ?），先把六个面录完整'); return; }
+  toast('还没有还原公式，正在自动计算，算完自动播放…');
+  startSolve('solve');
 });
 document.addEventListener('keydown',e=>{
   if(!stage.open) return;
