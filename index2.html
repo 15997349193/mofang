@@ -80,7 +80,8 @@
   #colorPopup .cp { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(0,0,0,.3); cursor: pointer; }
   #colorPopup .cp:hover { transform: scale(1.12); box-shadow: 0 0 0 2px #1f2430; }
 
-  #outString { width: 100%; font-family: Consolas, monospace; font-size: 13px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: #fafafa; word-break: break-all; }
+  #outString { width: 100%; font-family: Consolas, monospace; font-size: 13px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: #fafafa; word-break: break-all; cursor: text; user-select: text; }
+  #outString:focus { outline: 2px solid #7aa7ff; background: #fff; }
   .val { font-size: 12px; line-height: 1.7; }
   .val .ok { color: #15803d; } .val .warn { color: var(--warn); } .val .err { color: var(--err); }
     /* ===== 贴纸统计 ===== */
@@ -261,10 +262,10 @@
 
     <div class="card">
       <h2>Facelet 编码（URFDLB 顺序，54 字符）</h2>
-      <div id="outString">尚未识别</div>
+      <div id="outString" contenteditable="true" spellcheck="false" title="可直接粘贴 54 字符编码（URFDLB），粘贴后两个视图自动填色">尚未识别</div>
       <div class="row" style="margin-top:8px">
         <button class="primary" id="btnCopy" disabled>复制完整编码</button>
-        <span class="hint">未拍到的面用 ? 表示。可转到 Cube Explorer 主窗口按 Ctrl+V 粘贴（若版本不支持粘贴，就在 Facelet Editor 里对照颜色补全）。</span>
+        <span class="hint">未拍到的面用 ? 表示。本框支持直接粘贴 54 字符编码（如从 Cube Explorer 复制），粘贴后两个视图自动填色、校验通过即可求解；也可手动编辑。</span>
       </div>
     </div>
 
@@ -2240,6 +2241,64 @@ function renderString(){
   $('btnCopy').disabled=false;
   return str;
 }
+/* ---- 编码框粘贴/手动输入：自动解析并填充两个视图 ---- */
+function sanitizeFacelet(text){
+  return String(text).toUpperCase().replace(/[^A-Z?]/g,'');
+}
+function applyFaceletString(str, source){
+  if(str.includes('?')){
+    toast('编码含 ?（还有面未录入）。请粘贴完整 54 字符编码');
+    return false;
+  }
+  if(str.length!==54){
+    toast(`编码长度应为 54，当前 ${str.length} 个字母（URFDLB 顺序）`);
+    return false;
+  }
+  for(let i=0;i<54;i++) if('URFDLB'.indexOf(str[i])<0){
+    toast(`第 ${i+1} 位出现非法字符 "${str[i]}"（只能是 U R F D L B）`);
+    return false;
+  }
+  const CENTERS=['U','R','F','D','L','B'];
+  for(let fi=0;fi<6;fi++) if(str[fi*9+4]!==CENTERS[fi]){
+    toast(`中心格字母错误：第 ${fi+1} 面中心应为 "${CENTERS[fi]}"，实际为 "${str[fi*9+4]}"`);
+    return false;
+  }
+  const st=decode(str);
+  if(!st){ toast('编码无法解析：存在现实魔方不可能的颜色组合，请检查'); return false; }
+  // 写入贴纸：字母 = 面 → 该面中心色名
+  FACE_LETTERS.forEach((f,fi)=>{
+    const arr=new Array(9);
+    for(let i=0;i<9;i++){
+      const name=FACE_TO_NAME[f];
+      if(str[fi*9+i]===f) arr[i]={rgb:COLOR_REFS[name].slice(), name, manual:true};
+      else arr[i]={rgb:COLOR_REFS[FACE_TO_NAME[str[fi*9+i]]].slice(), name:FACE_TO_NAME[str[fi*9+i]], manual:true};
+    }
+    stickers[f]=arr;
+  });
+  clearSolveResult();
+  updateUI();
+  const v=validate(decode(str));
+  if(v.ok){
+    toast((source==='paste'?'粘贴成功：':'编码更新：')+'两个视图已填色，校验通过，可直接求解');
+  } else {
+    toast('已按编码填色，但校验未通过：'+v.msg);
+  }
+  return true;
+}
+$('outString').addEventListener('paste',e=>{
+  e.preventDefault();
+  const text=(e.clipboardData||window.clipboardData).getData('text');
+  const str=sanitizeFacelet(text);
+  if(!str.length){ toast('剪贴板里没有可识别的字母'); return; }
+  if(!applyFaceletString(str,'paste')){
+    // 失败时恢复显示当前状态，避免残缺文本留在框里
+    renderString();
+  }
+});
+$('outString').addEventListener('input',()=>{
+  const str=sanitizeFacelet($('outString').textContent);
+  if(str.length===54 && !str.includes('?')) applyFaceletString(str,'input');
+});
 $('btnCopy').addEventListener('click',()=>{
   const str=renderString();
   if(str.includes('?')&& !confirm('还有未录入的面（编码中含 ?），仍要复制吗？')) return;
