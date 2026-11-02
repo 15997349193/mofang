@@ -1,0 +1,2703 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>魔方照片转贴纸 · Cube Explorer 辅助录入</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --border: #d9dde3; --text: #1f2430;
+    --muted: #6b7280; --accent: #2563eb; --accent-soft: #e8effd; --warn: #b45309; --err: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 20px; }
+  header h1 { font-size: 18px; margin: 0 0 4px; }
+  header p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  main { display: flex; gap: 16px; padding: 16px 20px; align-items: flex-start; flex-wrap: wrap; }
+  #left { flex: 1 1 480px; min-width: 380px; }
+  #panel { flex: 1 1 520px; max-width: 640px; display: flex; flex-direction: column; gap: 12px; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 8px; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* ===== 照片区：多张照片并排 ===== */
+  #photoArea { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .photoCard { background: var(--panel); border: 2px solid var(--border); border-radius: 10px; padding: 8px; }
+  .photoCard.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .photoTag { font-size: 12px; color: var(--muted); margin-bottom: 6px; line-height: 1.5; }
+  .photoCard.active .photoTag { color: var(--accent); font-weight: bold; }
+  .photoCard canvas { display: block; max-width: 100%; cursor: crosshair; }
+  #dropZone { border: 2px dashed var(--border); border-radius: 10px; background: var(--panel);
+    min-height: 320px; flex: 1 1 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  #dropZone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  #dropZone.empty { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.8; }
+
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  select, button { font-size: 13px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-file { display: inline-block; font-size: 13px; padding: 5px 10px; border: 1px solid var(--border);
+    border-radius: 6px; background: #fff; color: var(--text); cursor: pointer; user-select: none; }
+  .btn-file:active { background: var(--accent-soft); }
+  .sr-file { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); border: 0; opacity: 0; }
+  .phase { font-size: 13px; font-weight: bold; color: var(--accent); }
+  .faceInfo { font-size: 13px; }
+
+  /* ===== 3D 预览 ===== */
+  .c3scene { width: 230px; height: 240px; margin: 0 auto; perspective: 750px;
+    cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .c3scene.dragging { cursor: grabbing; }
+  .c3scene * { -webkit-user-drag: none; user-select: none; }
+  #cube3d { width: 150px; height: 150px; position: relative; margin: 45px auto;
+    transform-style: preserve-3d; transform: rotateX(-28deg) rotateY(-38deg); }
+  .c3f { position: absolute; width: 150px; height: 150px;
+    display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr);
+    padding: 6px; gap: 2px; background: #1a1a1e; border-radius: 6px; }
+  .c3f .s3 { border-radius: 3px; background: #75757a; border: 1px solid rgba(0,0,0,.45); cursor: pointer; }
+  .c3f .s3:hover { filter: brightness(1.15); }
+  #fF { transform: translateZ(75px); }
+  #fB { transform: rotateY(180deg) translateZ(75px); filter: brightness(.75); }
+  #fR { transform: rotateY(90deg) translateZ(75px); filter: brightness(.88); }
+  #fL { transform: rotateY(-90deg) translateZ(75px); filter: brightness(.75); }
+  #fU { transform: rotateX(90deg) translateZ(75px); filter: brightness(1.08); }
+  #fD { transform: rotateX(-90deg) translateZ(75px); filter: brightness(.7); }
+
+  /* ===== 贴纸视图（仿 Cube Explorer Facelet Editor） ===== */
+  #faceletView { display: block; margin: 0 auto; user-select: none; -webkit-user-select: none; max-width: 100%; }
+  #faceletView polygon.st { stroke: #1a1a1e; stroke-width: 2; cursor: pointer; }
+  #faceletView polygon.st:hover { filter: brightness(1.15) saturate(1.1); }
+  #colorPopup { position: fixed; display: none; z-index: 50; background: #fff; border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.2); padding: 8px 10px; }
+  #colorPopup .cpTitle { font-size: 12px; color: var(--muted); margin-bottom: 6px; white-space: nowrap; }
+  #colorPopup .cpGrid { display: grid; grid-template-columns: repeat(3, 34px); gap: 6px; }
+  #colorPopup .cp { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(0,0,0,.3); cursor: pointer; }
+  #colorPopup .cp:hover { transform: scale(1.12); box-shadow: 0 0 0 2px #1f2430; }
+
+  #outString { width: 100%; font-family: Consolas, monospace; font-size: 13px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: #fafafa; word-break: break-all; }
+  .val { font-size: 12px; line-height: 1.7; }
+  .val .ok { color: #15803d; } .val .warn { color: var(--warn); } .val .err { color: var(--err); }
+    /* ===== 贴纸统计 ===== */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { display: flex; align-items: center; gap: 5px; font-size: 12px; border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 7px 3px 4px; background: #fafbfc; }
+  .chip i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.3); }
+  .chip b { font-weight: bold; }
+  .chip.ok { border-color: #b7e0c4; background: #f4fbf6; }
+  .chip.ok b { color: #15803d; }
+  .chip.bad { border-color: #efb0b0; background: #fff6f6; }
+  .chip.bad b { color: var(--err); }
+  /* ===== 求解卡片 ===== */
+  .seg { font-size: 12px; padding: 3px 9px; }
+  .seg.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .algRow { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; font-size: 12px; }
+  .algRow .lb { color: var(--muted); white-space: nowrap; padding-top: 4px; width: 30px; }
+  .algVal { flex: 1; font-family: Consolas, monospace; font-size: 13px; word-break: break-all; line-height: 1.6;
+    background: #fafafa; border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; min-height: 26px; }
+  .algRow.hl .algVal { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .algMeta { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2430; color: #fff;
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .toast.show { opacity: .95; }
+
+  /* ===== 还原动画演示舞台（教学：大字步骤 + 3D 同步转动） ===== */
+  #showStage { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column;
+    background: radial-gradient(120% 90% at 50% 0%, #1a2440 0%, #0a0e17 58%, #04060a 100%);
+    color: #eef2ff; opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .3s ease, visibility 0s linear .3s; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  #showStage.on { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .3s ease; }
+  #showStage::before { content: ""; position: absolute; left: 50%; top: 47%; width: 130vmin; height: 130vmin;
+    transform: translate(-50%, -50%); pointer-events: none;
+    background: radial-gradient(circle, rgba(74,222,128,.15), rgba(74,222,128,0) 62%); }
+  #showStage::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .3;
+    background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 58px 58px;
+    -webkit-mask-image: radial-gradient(circle at 50% 44%, #000 0%, transparent 72%);
+    mask-image: radial-gradient(circle at 50% 44%, #000 0%, transparent 72%); }
+
+  .showTop { display: flex; align-items: center; gap: 12px; padding: 15px 22px 4px; position: relative; z-index: 3; }
+  .showTitle { font-size: 14px; font-weight: 700; letter-spacing: 3px; color: #cfdcff; }
+  .showSub { font-size: 12px; color: #7b8bb4; font-family: Consolas, monospace; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .showClose { width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color: #cfd8f5;
+    font-size: 15px; line-height: 1; transition: background .18s, transform .18s; }
+  .showClose:hover { background: rgba(255,255,255,.15); transform: rotate(90deg); }
+
+  .showNow { text-align: center; position: relative; z-index: 3; padding: 2px 16px 0; }
+  .nowBadge { font-size: 12px; color: #7b8bb4; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+  .nowRow { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 2px; }
+  .nowLetter { font-size: clamp(52px, 8.6vmin, 92px); font-weight: 800; line-height: 1.02; letter-spacing: -2px;
+    background: linear-gradient(180deg, #ffffff 20%, #7ee7a8 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 26px rgba(74,222,128,.5)); }
+  .nowLetter.fin { letter-spacing: 0; }
+  .nowArrow { width: clamp(34px, 4.6vmin, 50px); height: clamp(34px, 4.6vmin, 50px); color: #7ee7a8;
+    opacity: .95; filter: drop-shadow(0 0 12px rgba(74,222,128,.6)); transition: transform .25s; }
+  .nowArrow svg { width: 100%; height: 100%; display: block; }
+  .nowArrow.off { opacity: .18; }
+  .nowLabel { font-size: clamp(15px, 2.1vmin, 20px); color: #c9d6f5; margin-top: 4px; letter-spacing: .5px; }
+  .nowLabel b { color: #7ee7a8; font-weight: 700; }
+  .nowLabel em { font-style: normal; color: #ffd400; font-weight: 700; }
+
+  .showCube { flex: 1; display: flex; align-items: center; justify-content: center; position: relative;
+    min-height: 0; z-index: 2; }
+  .showScene { position: relative; width: min(58vmin, 520px); height: min(52vmin, 470px);
+    perspective: 1500px; perspective-origin: 50% 46%; }
+  #showCubeRoot { position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+    transform-style: preserve-3d; transform: rotateX(-24deg) rotateY(-34deg); }
+  .cb { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d;
+    transform-origin: 0 0; will-change: transform; }
+  .cf { position: absolute; width: var(--cs); height: var(--cs);
+    left: calc(var(--cs) / -2); top: calc(var(--cs) / -2);
+    border-radius: calc(var(--cs) * .13); background: #0b0d12;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.6); backface-visibility: hidden; }
+  .cb.hl .cf { box-shadow: inset 0 0 0 2px rgba(255,255,255,.92); filter: brightness(1.3) saturate(1.15); }
+  .showFloor { position: absolute; left: 50%; bottom: 6%; width: min(46vmin, 400px); height: 46px;
+    transform: translateX(-50%); pointer-events: none;
+    background: radial-gradient(ellipse at 50% 50%, rgba(94,234,212,.22), rgba(94,234,212,0) 70%);
+    filter: blur(6px); }
+
+  .showBottom { padding: 0 18px calc(16px + env(safe-area-inset-bottom, 0px)); position: relative; z-index: 3; }
+  .showSteps { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+    max-height: 92px; overflow-y: auto; padding: 2px; scrollbar-width: none; }
+  .showSteps::-webkit-scrollbar { display: none; }
+  .st { font-family: Consolas, monospace; font-size: 13px; padding: 5px 9px; border-radius: 8px;
+    background: rgba(255,255,255,.06); color: #7b8bb4; border: 1px solid transparent;
+    transition: all .2s ease; user-select: none; cursor: default; }
+  .st.done { color: #7ee7a8; background: rgba(74,222,128,.1); }
+  .st.cur { color: #04140a; background: linear-gradient(180deg, #a7f3c4, #4ade80); border-color: #d6ffe6;
+    transform: scale(1.2); box-shadow: 0 8px 20px -8px rgba(74,222,128,.95); font-weight: 700; }
+  .showCtl { display: flex; gap: 9px; justify-content: center; margin-top: 13px; flex-wrap: wrap; }
+  .showCtl button { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06);
+    color: #dfe7ff; padding: 9px 17px; border-radius: 10px; font-size: 13.5px; cursor: pointer;
+    transition: background .16s, transform .1s; }
+  .showCtl button:hover { background: rgba(255,255,255,.14); }
+  .showCtl button:active { transform: scale(.97); }
+  .showCtl button:disabled { opacity: .35; cursor: not-allowed; }
+  .showCtl button.primary { background: linear-gradient(180deg, #4ade80, #22b35e); color: #04140a;
+    border: 0; font-weight: 700; box-shadow: 0 8px 22px -10px rgba(74,222,128,.95); }
+  .showBar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1);
+    margin-top: 13px; overflow: hidden; }
+  .showBar i { display: block; height: 100%; width: 0; border-radius: 4px;
+    background: linear-gradient(90deg, #4ade80, #a7f3c4); transition: width .3s ease; }
+
+  @media (max-width: 720px) {
+    .showTop { padding: 12px 14px 0; }
+    .showTitle { font-size: 12.5px; letter-spacing: 2px; }
+    .showSub { font-size: 11px; }
+    .showSteps { max-height: 74px; gap: 5px; }
+    .st { font-size: 12px; padding: 4px 7px; }
+    .showCtl button { padding: 8px 13px; font-size: 12.5px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>魔方照片转贴纸（Cube Explorer 辅助录入）</h1>
+  <p>两张照片录全六面：第 1 张黄色中心朝上（拍到 U/F/R），第 2 张白色中心朝上（拍到 D/L/B）。
+     上传后<b>自动识别三个面的角点并填充颜色</b>（供参考）；如角点有偏差，可拖动照片上的角点方块微调，或点「重选本照片的角点」手动重标。
+     面字母由中心色自动判定：黄U 红F 绿R 白D 蓝L 橙B。
+     六面齐全后可按 Kociemba 二阶段算法直接求<b>还原公式</b>，并生成互为逆的<b>当前视图公式</b>。</p>
+</header>
+
+<main>
+  <section id="left">
+    <div class="card" style="margin-bottom:12px">
+      <div class="row">
+        <span class="phase" id="phaseText">① 请先上传照片</span>
+        <span class="faceInfo hint" id="faceInfo"></span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="btnUndo" disabled>撤销上一个点</button>
+        <button id="btnAuto" disabled>自动识别角点</button>
+        <button id="btnResetPhoto" disabled>重选本照片的角点</button>
+        <button id="btnNextPhoto" class="primary" style="display:none">录入下一张照片 →</button>
+        <button id="btnClearAll">清空全部已识别数据</button>
+        <span class="hint" style="margin-left:auto">支持拖拽图片、Ctrl+V 粘贴</span>
+        <input type="file" id="fileInput" accept="image/*" class="sr-file">
+        <label for="fileInput" class="btn-file">选择照片</label>
+      </div>
+    </div>
+    <div id="photoArea">
+      <div id="dropZone" class="empty">
+        将照片拖到这里，或按 Ctrl+V 粘贴截图<br>
+        <span style="font-size:12px">拍摄建议：为照到右面可倾斜约 45°；光线均匀无反光；魔方占画面大一些</span>
+      </div>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <div class="card">
+      <h2>3D 预览（拖动旋转 · 点击格子改色）</h2>
+      <div class="c3scene" id="c3scene"><div id="cube3d">
+        <div class="c3f" id="fU"></div><div class="c3f" id="fD"></div>
+        <div class="c3f" id="fF"></div><div class="c3f" id="fB"></div>
+        <div class="c3f" id="fR"></div><div class="c3f" id="fL"></div>
+      </div></div>
+      <div class="row" style="justify-content:center;margin-top:6px">
+        <button id="btnResetView">复位视角</button>
+      </div>
+      <div class="hint" style="text-align:center;margin-top:4px">按住左键拖动旋转 · 轻点任意方块弹出六色选择器改色 · 灰色 = 尚未录入</div>
+    </div>
+
+    <div class="card">
+      <h2>Kociemba 视图（点击格子改色）</h2>
+      <svg id="faceletView" width="500" height="380" viewBox="0 0 500 380"></svg>
+      <div class="hint" style="text-align:center;margin-top:4px">灰色 = 尚未录入 · 点击任意格子弹出六色选择器，两个视图与编码同步更新</div>
+    </div>
+
+    <div class="card">
+      <h2>Facelet 编码（URFDLB 顺序，54 字符）</h2>
+      <div id="outString">尚未识别</div>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="btnCopy" disabled>复制完整编码</button>
+        <span class="hint">未拍到的面用 ? 表示。可转到 Cube Explorer 主窗口按 Ctrl+V 粘贴（若版本不支持粘贴，就在 Facelet Editor 里对照颜色补全）。</span>
+      </div>
+    </div>
+
+    <div class="card" id="statCard">
+      <h2>贴纸统计（正确魔方六色各 9 块）</h2>
+      <div class="hint" id="statTop">尚未录入</div>
+      <div class="chips" id="statChips"></div>
+      <div class="hint" id="statNote" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card" id="solveCard">
+      <h2>求解（Kociemba 二阶段算法）</h2>
+      <div class="row" style="margin-bottom:6px">
+        <span class="hint">模式：</span>
+        <select id="modeSel" style="font-size:12px; padding:3px 6px; border:1px solid var(--border); border-radius:6px; background:#fff; color:var(--text)">
+          <option value="fast">快速（近最优）</option>
+          <option value="opt">最优（更短 · 更慢）</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnSolve" disabled>Solve 还原公式</button>
+        <button id="btnGenerate" disabled>Generate 生成当前视图公式</button>
+      </div>
+      <div class="algRow" id="rowSolve">
+        <span class="lb">还原</span><span class="algVal" id="algSolve">—</span>
+        <button id="btnCopySolve" disabled>复制</button>
+      </div>
+      <div class="algRow" id="rowGen">
+        <span class="lb">生成</span><span class="algVal" id="algGen">—</span>
+        <button id="btnCopyGen" disabled>复制</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnShowAnim" disabled>▶ 播放还原动画（教学演示）</button>
+        <span class="hint">逐步大字提示「转哪一层 · 往哪转」，3D 模型同步转动，每步 1 秒</span>
+      </div>
+      <div class="algMeta" id="solveStatus">还原公式 = 把当前视图拧回六面同色；生成公式 = 把复原的魔方拧成当前视图。两者互为逆公式。</div>
+    </div>
+
+    <details class="card">
+      <summary>使用步骤说明</summary>
+      <ol class="hint" style="padding-left:18px;margin:8px 0 0">
+        <li><b>第 1 张照片</b>：黄色中心朝上，倾斜约 45° 拍到顶面 + 左右两个侧面（一般是黄U红F绿R）。</li>
+        <li>上传后页面<b>自动识别三个面的角点</b>并采样填色，直接看结果即可。</li>
+        <li>若某个面框偏了：在照片上<b>拖动角点上的蓝色小方块</b>即时微调（颜色会重新采样）；若整个面认错了，点「重选本照片的角点」依次点 4 个角（<b>顺序任意</b>）。</li>
+        <li>点 <b>「录入下一张照片 →」</b> 后上传<b>第 2 张照片</b>：把魔方整体<b>倒立</b>让白色中心朝上，再水平转动让剩下两个侧面进入画面（一般是白D蓝L橙B），同样视角拍摄，页面同样自动识别。两张照片并排显示，随时对照。</li>
+        <li>在两个视图里检查：点击任意格子弹出六色选择器，点颜色即修改，两个视图与编码同步更新。</li>
+        <li>看<b>「贴纸统计」</b>卡片：六色必须各 9 块。<b>数量不对就说明有格子认错色</b>，页面只提示、不会自动改动——按提示直接<b>点击可疑的格子</b>，在六色选择器里改成正确颜色即可。</li>
+        <li>若某张照片拍到的面与之前重复，数据会自动覆盖，缺哪个面就再补拍一张，直到 6 个面齐全。</li>
+        <li>六面齐全后可直接用<b>「Solve 还原公式」</b>求复原步骤，<b>「Generate 生成当前视图公式」</b>得到其逆公式（把复原的魔方拧成现在这个样子）。两个按钮都有<b>快速（近最优）</b>与<b>最优（更短）</b>两种模式。</li>
+        <li>也可以复制 54 字符编码，粘贴到 Cube Explorer 求解。</li>
+      </ol>
+    </details>
+  </aside>
+</main>
+
+<div id="colorPopup">
+  <div class="cpTitle"></div>
+  <div class="cpGrid"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- ===== 还原动画演示舞台 ===== -->
+<div id="showStage" hidden aria-hidden="true">
+  <div class="showTop">
+    <div class="showTitle">还原演示</div>
+    <div class="showSub" id="showAlgText">—</div>
+    <button class="showClose" id="showClose" title="退出演示（Esc）">✕</button>
+  </div>
+
+  <div class="showNow">
+    <div class="nowBadge" id="nowIdx">准备开始</div>
+    <div class="nowRow">
+      <div class="nowLetter" id="nowLetter">—</div>
+      <div class="nowArrow" id="nowArrow">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="3.4"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 6.2a13.8 13.8 0 1 1-9.8 4.1"/>
+          <path d="M20 1.6v8.4M15.9 5.7 20 9.8l4.1-4.1"/>
+        </svg>
+      </div>
+    </div>
+    <div class="nowLabel" id="nowLabel">正在准备演示…</div>
+  </div>
+
+  <div class="showCube">
+    <div class="showScene">
+      <div id="showCubeRoot"></div>
+      <div class="showFloor"></div>
+    </div>
+  </div>
+
+  <div class="showBottom">
+    <div class="showSteps" id="showSteps"></div>
+    <div class="showCtl">
+      <button id="showPrev">‹ 上一步</button>
+      <button class="primary" id="showPlay">暂停</button>
+      <button id="showNext">下一步 ›</button>
+      <button id="showAgain">重播</button>
+    </div>
+    <div class="showBar"><i id="showBarFill"></i></div>
+  </div>
+</div>
+
+<script id="solverSrc" type="text/js-worker">
+'use strict';
+/* ==========================================================================
+   Kociemba 二阶段求解器（纯函数，无 DOM，可跑在主线程 / Worker / Node）
+   --------------------------------------------------------------------------
+   贴纸顺序：URFDLB，每面 3x3 row-major 共 54 字符
+   块编号：角 URF,UFL,ULB,UBR,DFR,DLF,DBL,DRB / 棱 UR,UF,UL,UB,DR,DF,DL,DB,FR,FL,BL,BR
+   移动编号：face*3 + (power-1)，face 顺序 U R F D L B
+   ========================================================================== */
+
+/* ---------- 1. 用几何定义推导 6 个面转动的贴纸置换（保证与页面 FACE_DEFS 一致） ---------- */
+const FACE_ORDER = ['U','R','F','D','L','B'];
+const FDEFS = {
+  U:{n:[0,1,0],  up:[0,0,-1], right:[1,0,0]},
+  R:{n:[1,0,0],  up:[0,1,0],  right:[0,0,-1]},
+  F:{n:[0,0,1],  up:[0,1,0],  right:[1,0,0]},
+  D:{n:[0,-1,0], up:[0,0,1],  right:[1,0,0]},
+  L:{n:[-1,0,0], up:[0,1,0],  right:[0,0,1]},
+  B:{n:[0,0,-1], up:[0,1,0],  right:[-1,0,0]},
+};
+const FPOS = new Array(54), FNORM = new Array(54);
+for(let fi=0; fi<6; fi++){
+  const d = FDEFS[FACE_ORDER[fi]];
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const u = 1-r, v = c-1, idx = fi*9 + r*3 + c;
+    FPOS[idx] = [ d.n[0]*2 + d.up[0]*u + d.right[0]*v,
+                  d.n[1]*2 + d.up[1]*u + d.right[1]*v,
+                  d.n[2]*2 + d.up[2]*u + d.right[2]*v ];
+    FNORM[idx] = d.n.slice();
+  }
+}
+const _k3 = (p,n)=> p[0]+','+p[1]+','+p[2]+'|'+n[0]+','+n[1]+','+n[2];
+const FPOSMAP = new Map();
+for(let i=0;i<54;i++) FPOSMAP.set(_k3(FPOS[i],FNORM[i]), i);
+
+// 顺时针（从该面外侧看）= 绕外法向转 -90°：v' = a(a·v) - (a×v)
+function rot90(v,a){
+  const d = v[0]*a[0]+v[1]*a[1]+v[2]*a[2];
+  const cr = [ a[1]*v[2]-a[2]*v[1], a[2]*v[0]-a[0]*v[2], a[0]*v[1]-a[1]*v[0] ];
+  return [ a[0]*d-cr[0], a[1]*d-cr[1], a[2]*d-cr[2] ];
+}
+// TURNPERM[fi][i] = 贴纸 i 转到的新位置 j
+const TURNPERM = [];
+for(let fi=0; fi<6; fi++){
+  const a = FDEFS[FACE_ORDER[fi]].n, perm = new Array(54);
+  for(let i=0;i<54;i++){
+    // 该面本体贴纸的坐标沿法向为 ±2，相邻面的边行/边列为 ±1，用 0.5 作分层阈值
+    if(FPOS[i][0]*a[0]+FPOS[i][1]*a[1]+FPOS[i][2]*a[2] < 0.5){ perm[i]=i; continue; }
+    const j = FPOSMAP.get(_k3(rot90(FPOS[i],a), rot90(FNORM[i],a)));
+    if(j==null) throw new Error('facelet permutation build failed');
+    perm[i]=j;
+  }
+  TURNPERM.push(perm);
+}
+function turnStr(s, fi){
+  const p = TURNPERM[fi], out = new Array(54);
+  for(let i=0;i<54;i++) out[p[i]] = s[i];
+  return out.join('');
+}
+
+/* ---------- 2. 贴纸 <-> 块 ---------- */
+const CF = [[8,9,20],[6,18,38],[0,36,47],[2,45,11],[29,26,15],[27,44,24],[33,53,42],[35,17,51]];
+const CC = [['U','R','F'],['U','F','L'],['U','L','B'],['U','B','R'],
+            ['D','F','R'],['D','L','F'],['D','B','L'],['D','R','B']];
+const EF = [[5,10],[7,19],[3,37],[1,46],[32,16],[28,25],[30,43],[34,52],[23,12],[21,41],[50,39],[48,14]];
+const EC = [['U','R'],['U','F'],['U','L'],['U','B'],['D','R'],['D','F'],
+            ['D','L'],['D','B'],['F','R'],['F','L'],['B','L'],['B','R']];
+const SOLVED_STR = 'UUUUUUUUU' + 'RRRRRRRRR' + 'FFFFFFFFF' + 'DDDDDDDDD' + 'LLLLLLLLL' + 'BBBBBBBBB';
+
+function decode(str){
+  if(typeof str!=='string' || str.length!==54) return null;
+  for(let i=0;i<54;i++) if('URFDLB'.indexOf(str[i])<0) return null;
+  const cp=new Array(8), co=new Array(8), ep=new Array(12), eo=new Array(12);
+  for(let i=0;i<8;i++){
+    let ori=0;
+    for(;ori<3;ori++){ const ch=str[CF[i][ori]]; if(ch==='U'||ch==='D') break; }
+    if(ori===3) return null;
+    const c1=str[CF[i][(ori+1)%3]], c2=str[CF[i][(ori+2)%3]];
+    let j=-1;
+    for(let k=0;k<8;k++) if(CC[k][1]===c1 && CC[k][2]===c2){ j=k; break; }
+    if(j<0) return null;
+    cp[i]=j; co[i]=ori%3;
+  }
+  for(let i=0;i<12;i++){
+    const a=str[EF[i][0]], b=str[EF[i][1]];
+    let j=-1, o=0;
+    for(let k=0;k<12;k++){
+      if(EC[k][0]===a && EC[k][1]===b){ j=k; o=0; break; }
+      if(EC[k][0]===b && EC[k][1]===a){ j=k; o=1; break; }
+    }
+    if(j<0) return null;
+    ep[i]=j; eo[i]=o;
+  }
+  return {cp,co,ep,eo};
+}
+function encode(st){
+  const f = new Array(54);
+  const cU='U', cR='R', cF='F', cD='D', cL='L', cB='B';
+  f[4]=cU; f[13]=cR; f[22]=cF; f[31]=cD; f[40]=cL; f[49]=cB;
+  for(let p=0;p<8;p++){
+    const col=CC[st.cp[p]], ori=st.co[p];
+    for(let k=0;k<3;k++) f[CF[p][(ori+k)%3]] = col[k];
+  }
+  for(let p=0;p<12;p++){
+    const col=EC[st.ep[p]], o=st.eo[p];
+    f[EF[p][0]] = col[o]; f[EF[p][1]] = col[1-o];
+  }
+  return f.join('');
+}
+
+/* ---------- 3. 6 个基本转动的块级置换（由贴纸置换反解，保证与上面同一套约定） ---------- */
+const MOVE = new Array(18);
+function buildMoves(){
+  if(MOVE[0]) return;
+  for(let fi=0; fi<6; fi++){
+    let s = SOLVED_STR;
+    for(let pw=1; pw<=3; pw++){
+      s = turnStr(s, fi);
+      const d = decode(s);            // 从复原态转一次 ⇒ cp[p] 即"来源位置"，co[p] 即扭转增量
+      MOVE[fi*3+pw-1] = {cp:d.cp, co:d.co, ep:d.ep, eo:d.eo};
+    }
+  }
+}
+const INV = new Array(18);
+for(let f=0;f<6;f++) for(let p=1;p<=3;p++) INV[f*3+(p-1)] = f*3+(3-p);
+const FACE_OF = new Array(18), OPP = [3,4,5,0,1,2];
+for(let i=0;i<18;i++) FACE_OF[i] = (i/3)|0;
+
+const _cp=new Array(8), _co=new Array(8), _ep=new Array(12), _eo=new Array(12);
+function applyMv(cp,co,ep,eo, m){
+  for(let p=0;p<8;p++){ const q=m.cp[p]; _cp[p]=cp[q]; _co[p]=(co[q]+m.co[p])%3; }
+  for(let p=0;p<12;p++){ const q=m.ep[p]; _ep[p]=ep[q]; _eo[p]=(eo[q]+m.eo[p])&1; }
+  for(let p=0;p<8;p++){ cp[p]=_cp[p]; co[p]=_co[p]; }
+  for(let p=0;p<12;p++){ ep[p]=_ep[p]; eo[p]=_eo[p]; }
+}
+function applyMoves(st, moves){
+  buildMoves();
+  const cp=st.cp.slice(), co=st.co.slice(), ep=st.ep.slice(), eo=st.eo.slice();
+  for(const m of moves) applyMv(cp,co,ep,eo, MOVE[m|0]);
+  return {cp,co,ep,eo};
+}
+const isSolved = st => st.cp.every((v,i)=>v===i) && st.ep.every((v,i)=>v===i)
+                    && st.co.every(v=>v===0) && st.eo.every(v=>v===0);
+
+function permParity(a){
+  let inv=0;
+  for(let i=0;i<a.length;i++) for(let j=i+1;j<a.length;j++) if(a[j]<a[i]) inv++;
+  return inv&1;
+}
+function validate(st){
+  if(!st) return {ok:false, msg:'编码里出现了无法识别的贴纸（可能还有未录入的格子）'};
+  if(new Set(st.cp).size!==8) return {ok:false, msg:'角块重复：有格子颜色录错（黄色/橙色区分错最常见）'};
+  if(new Set(st.ep).size!==12) return {ok:false, msg:'棱块重复：有格子颜色录错'};
+  let s=0; for(const v of st.co) s+=v;
+  if(s%3) return {ok:false, msg:'角块朝向不合法（有 1~2 个角块被单独扭转），通常是某几格颜色录错'};
+  let t=0; for(const v of st.eo) t+=v;
+  if(t%2) return {ok:false, msg:'棱块朝向不合法（有棱块被单独翻转），通常是某几格颜色录错'};
+  if(permParity(st.cp)!==permParity(st.ep)) return {ok:false, msg:'存在两块互换（置换奇偶不合法），通常是某两格颜色录错'};
+  return {ok:true};
+}
+
+/* ---------- 4. 坐标 & 移动表 ---------- */
+const N_TWIST=2187, N_FLIP=2048, N_SLICE=495, N_PERM=40320;
+let TWIST_MV, FLIP_MV, SLICE_MV, CP_MV, EP8_MV, SP_MV;
+// 4 个中层棱所在位置的组合编号（降序枚举，让"已复原"=0，与 twist/flip 的 0 对齐）
+const SLICE_IDX = new Int16Array(4096).fill(-1);
+const SLICE_MASK = new Int16Array(495);
+{
+  let n=0;
+  for(let a=11;a>=0;a--)for(let b=a-1;b>=0;b--)for(let c=b-1;c>=0;c--)for(let d=c-1;d>=0;d--){
+    const m=(1<<a)|(1<<b)|(1<<c)|(1<<d);
+    SLICE_IDX[m]=n; SLICE_MASK[n]=m; n++;
+  }
+}
+const FACT=[1,1,2,6,24,120,720,5040,40320];
+const rank8 = a=>{ let r=0; for(let i=0;i<8;i++){ let c=0; for(let j=i+1;j<8;j++) if(a[j]<a[i]) c++; r+=c*FACT[7-i]; } return r; };
+const unrank8 = r=>{ const a=[], av=[0,1,2,3,4,5,6,7];
+  for(let i=0;i<8;i++){ const f=FACT[7-i], k=(r/f)|0; r-=k*f; a.push(av.splice(k,1)[0]); } return a; };
+const rank4 = a=>{ let r=0; for(let i=0;i<4;i++){ let c=0; for(let j=i+1;j<4;j++) if(a[j]<a[i]) c++; r+=c*FACT[3-i]; } return r; };
+const unrank4 = r=>{ const a=[], av=[0,1,2,3];
+  for(let i=0;i<4;i++){ const f=FACT[3-i], k=(r/f)|0; r-=k*f; a.push(av.splice(k,1)[0]); } return a; };
+
+const twistOf = co=>{ let t=0; for(let i=0;i<7;i++) t=t*3+co[i]; return t; };
+const flipOf  = eo=>{ let t=0; for(let i=0;i<11;i++) t=t*2+eo[i]; return t; };
+const sliceOf = ep=>{ let m=0; for(let i=0;i<12;i++) if(ep[i]>=8) m|=1<<i; return SLICE_IDX[m]; };
+function twistArr(t){ const co=new Array(8); let s=0; for(let i=6;i>=0;i--){ co[i]=t%3; s+=co[i]; t=(t/3)|0; } co[7]=(3-s%3)%3; return co; }
+function flipArr(t){ const eo=new Array(12); let s=0; for(let i=10;i>=0;i--){ eo[i]=t&1; s+=eo[i]; t>>=1; } eo[11]=(2-s%2)%2; return eo; }
+
+const P2MOVES = [0,1,2, 9,10,11, 4,7, 13,16];   // U U2 U' D D2 D' R2 F2 L2 B2
+const P2FACE  = P2MOVES.map(m=>FACE_OF[m]);
+
+function buildMoveTables(){
+  if(TWIST_MV) return;
+  buildMoves();
+  TWIST_MV = new Uint16Array(N_TWIST*18);
+  for(let t=0;t<N_TWIST;t++){
+    const co = twistArr(t);
+    for(let k=0;k<18;k++){
+      const m = MOVE[k], n = new Array(8);
+      for(let p=0;p<8;p++) n[p] = (co[m.cp[p]] + m.co[p])%3;
+      TWIST_MV[t*18+k] = twistOf(n);
+    }
+  }
+  FLIP_MV = new Uint16Array(N_FLIP*18);
+  for(let f=0;f<N_FLIP;f++){
+    const eo = flipArr(f);
+    for(let k=0;k<18;k++){
+      const m = MOVE[k], n = new Array(12);
+      for(let p=0;p<12;p++) n[p] = (eo[m.ep[p]] + m.eo[p])&1;
+      FLIP_MV[f*18+k] = flipOf(n);
+    }
+  }
+  SLICE_MV = new Uint16Array(N_SLICE*18);
+  const epInv = new Array(12);
+  for(let s=0;s<N_SLICE;s++){
+    const mask = SLICE_MASK[s];
+    for(let k=0;k<18;k++){
+      const mv = MOVE[k];
+      for(let p=0;p<12;p++) epInv[mv.ep[p]] = p;
+      let nm=0;
+      for(let q=0;q<12;q++) if(mask>>q & 1) nm |= 1<<epInv[q];
+      SLICE_MV[s*18+k] = SLICE_IDX[nm];
+    }
+  }
+  CP_MV = new Uint16Array(N_PERM*10);
+  for(let i=0;i<N_PERM;i++){
+    const p = unrank8(i);
+    for(let k=0;k<10;k++){
+      const m = MOVE[P2MOVES[k]], n = new Array(8);
+      for(let t=0;t<8;t++) n[t] = p[m.cp[t]];
+      CP_MV[i*10+k] = rank8(n);
+    }
+  }
+  EP8_MV = new Uint16Array(N_PERM*10);
+  for(let i=0;i<N_PERM;i++){
+    const p = unrank8(i);
+    for(let k=0;k<10;k++){
+      const m = MOVE[P2MOVES[k]], n = new Array(8);
+      for(let t=0;t<8;t++) n[t] = p[m.ep[t]];
+      EP8_MV[i*10+k] = rank8(n);
+    }
+  }
+  SP_MV = new Uint16Array(24*10);
+  for(let i=0;i<24;i++){
+    const p = unrank4(i);
+    for(let k=0;k<10;k++){
+      const m = MOVE[P2MOVES[k]], n = new Array(4);
+      for(let t=0;t<4;t++) n[t] = p[m.ep[8+t]-8];
+      SP_MV[i*10+k] = rank4(n);
+    }
+  }
+}
+
+/* ---------- 5. 剪枝表（BFS） ---------- */
+let P1A, P1B, P2A, P2B;
+function buildPruning(){
+  if(P1A) return;
+  buildMoveTables();
+  const N1 = N_TWIST*N_SLICE;
+  P1A = new Uint8Array(N1).fill(255);
+  {
+    const q = new Int32Array(N1);
+    P1A[0]=0; q[0]=0; let head=0, tail=1;
+    while(head<tail){
+      const cur=q[head++], d=P1A[cur]+1;
+      const tw=(cur/N_SLICE)|0, sl=cur-tw*N_SLICE, o1=tw*18, o2=sl*18;
+      for(let k=0;k<18;k++){
+        const ni = TWIST_MV[o1+k]*N_SLICE + SLICE_MV[o2+k];
+        if(P1A[ni]===255){ P1A[ni]=d; q[tail++]=ni; }
+      }
+    }
+  }
+  const N1b = N_FLIP*N_SLICE;
+  P1B = new Uint8Array(N1b).fill(255);
+  {
+    const q = new Int32Array(N1b);
+    P1B[0]=0; q[0]=0; let head=0, tail=1;
+    while(head<tail){
+      const cur=q[head++], d=P1B[cur]+1;
+      const fl=(cur/N_SLICE)|0, sl=cur-fl*N_SLICE, o1=fl*18, o2=sl*18;
+      for(let k=0;k<18;k++){
+        const ni = FLIP_MV[o1+k]*N_SLICE + SLICE_MV[o2+k];
+        if(P1B[ni]===255){ P1B[ni]=d; q[tail++]=ni; }
+      }
+    }
+  }
+  const N2 = N_PERM*24;
+  P2A = new Uint8Array(N2).fill(255);
+  {
+    const q = new Int32Array(N2);
+    P2A[0]=0; q[0]=0; let head=0, tail=1;
+    while(head<tail){
+      const cur=q[head++], d=P2A[cur]+1;
+      const cp=(cur/24)|0, sp=cur-cp*24, o1=cp*10, o2=sp*10;
+      for(let k=0;k<10;k++){
+        const ni = CP_MV[o1+k]*24 + SP_MV[o2+k];
+        if(P2A[ni]===255){ P2A[ni]=d; q[tail++]=ni; }
+      }
+    }
+  }
+  P2B = new Uint8Array(N2).fill(255);
+  {
+    const q = new Int32Array(N2);
+    P2B[0]=0; q[0]=0; let head=0, tail=1;
+    while(head<tail){
+      const cur=q[head++], d=P2B[cur]+1;
+      const ep=(cur/24)|0, sp=cur-ep*24, o1=ep*10, o2=sp*10;
+      for(let k=0;k<10;k++){
+        const ni = EP8_MV[o1+k]*24 + SP_MV[o2+k];
+        if(P2B[ni]===255){ P2B[ni]=d; q[tail++]=ni; }
+      }
+    }
+  }
+}
+
+/* ---------- 6. 搜索 ---------- */
+let NODES=0, DEADLINE=0, GLOBAL_DEADLINE=0, ABORT=false, SOL2=0;
+const path1 = new Array(24), path2 = new Array(24);
+
+const h1of = (co,ep,eo)=>{
+  const sl = sliceOf(ep);
+  const a = P1A[twistOf(co)*N_SLICE + sl], b = P1B[flipOf(eo)*N_SLICE + sl];
+  return a>b?a:b;
+};
+const h2of = (cpi,epi,spi)=>{
+  const a = P2A[cpi*24+spi], b = P2B[epi*24+spi];
+  return a>b?a:b;
+};
+
+function tryPhase2(cp,co,ep,eo, d1, cap){
+  const cpi = rank8(cp), epi = rank8(ep.slice(0,8)), spi = rank4(ep.slice(8,12).map(v=>v-8));
+  const maxd2 = Math.min(18, cap-d1);
+  if(maxd2 < 0) return false;
+  const h = h2of(cpi,epi,spi);
+  if(h > maxd2) return false;
+  for(let lim=h; lim<=maxd2; lim++){
+    if(dfs2(cpi,epi,spi,0,lim,-1)){
+      SOL2 = lim;
+      return true;
+    }
+    if(ABORT) return false;
+  }
+  return false;
+}
+function dfs2(cpi,epi,spi,d,lim,prevFace){
+  if((--NODES)<0){ ABORT=true; return false; }
+  if((NODES&8191)===0 && Date.now()>DEADLINE){ ABORT=true; return false; }
+  if(d===lim) return cpi===0 && epi===0 && spi===0;
+  for(let k=0;k<10;k++){
+    const f=P2FACE[k];
+    if(f===prevFace) continue;
+    if(f===OPP[prevFace] && f<prevFace) continue;
+    const ncp=CP_MV[cpi*10+k], nep=EP8_MV[epi*10+k], nsp=SP_MV[spi*10+k];
+    if(h2of(ncp,nep,nsp) > lim-d-1) continue;
+    path2[d]=k;
+    if(dfs2(ncp,nep,nsp,d+1,lim,f)) return true;
+    if(ABORT) return false;
+  }
+  return false;
+}
+function dfs1(cp,co,ep,eo,d,maxd1,prevFace,cap){
+  if(ABORT) return false;
+  if((--NODES)<0){ ABORT=true; return false; }
+  if((NODES&2047)===0 && Date.now()>DEADLINE){ ABORT=true; return false; }
+  const h = h1of(co,ep,eo);
+  if(h > maxd1-d) return false;
+  if(h===0 && tryPhase2(cp,co,ep,eo,d,cap)) return true;
+  if(d>=maxd1) return false;
+  for(let k=0;k<18;k++){
+    const f=FACE_OF[k];
+    if(f===prevFace) continue;
+    if(f===OPP[prevFace] && f<prevFace) continue;
+    applyMv(cp,co,ep,eo, MOVE[k]);
+    path1[d]=k;
+    const ok = dfs1(cp,co,ep,eo,d+1,maxd1,f,cap);
+    applyMv(cp,co,ep,eo, MOVE[INV[k]]);
+    if(ok) return true;
+  }
+  return false;
+}
+
+const MOVE_STR = m => 'URFDLB'[(m/3)|0] + ['','2',"'"][m%3];
+const algStr = ms => ms.map(MOVE_STR).join(' ');
+
+// 一次"限定总步数 cap"的两阶段搜索
+function onePass(st, cap, budget, passMs){
+  ABORT=false; NODES=budget; SOL2=0;
+  DEADLINE = passMs ? Math.min(GLOBAL_DEADLINE, Date.now()+passMs) : GLOBAL_DEADLINE;
+  const cp=st.cp.slice(), co=st.co.slice(), ep=st.ep.slice(), eo=st.eo.slice();
+  const h0 = h1of(co,ep,eo);
+  if(h0 > cap) return null;
+  const d1max = Math.min(12, cap);
+  for(let d1=h0; d1<=d1max; d1++){
+    if(dfs1(cp,co,ep,eo,0,d1,-1,cap)){
+      return {moves: path1.slice(0,d1).concat(path2.slice(0,SOL2).map(k=>P2MOVES[k])),
+              d1, d2:SOL2};
+    }
+    if(ABORT) return null;
+  }
+  return null;
+}
+
+function solveFacelets(str, opts){
+  opts = opts||{};
+  const mode = opts.mode==='opt' ? 'opt' : 'fast';
+  const st = decode(str);
+  const v = validate(st);
+  if(!v.ok) return {ok:false, error:v.msg};
+  if(isSolved(st)) return {ok:true, alg:'', len:0, already:true, ms:0, d1:0, d2:0};
+
+  const t0 = Date.now();
+  buildPruning();
+  const buildMs = Date.now()-t0;
+  const timeMs = opts.timeMs || (mode==='opt' ? 8000 : 2500);
+  DEADLINE = GLOBAL_DEADLINE = Date.now() + timeMs;
+
+  const verify = ms => isSolved(applyMoves(st, ms));
+  const opt = mode==='opt';
+  let best = null;
+  const r1 = onePass(st, 24, opt ? 6e7 : 3e7, opt ? 3000 : 900);
+  if(r1 && verify(r1.moves)) best = r1;
+  if(!best && !ABORT){
+    // 第一遍没解出（被截断）—— 放宽总步数上限再来一次
+    const r2 = onePass(st, 26, 6e7, opt ? 3000 : 900);
+    if(r2 && verify(r2.moves)) best = r2;
+  }
+  // 迭代收紧总步数上限：每找到一次更短的，就用"再短 1 步"重搜，直到搜不动或超时
+  if(best && (opt || best.moves.length > 20)){
+    const maxTry = opt ? 40 : 3;
+    let guard = 0;
+    while(Date.now() < GLOBAL_DEADLINE && guard++ < maxTry && best.moves.length > 1){
+      const r = onePass(st, best.moves.length-1, opt ? 1.2e7 : 6e6, opt ? 3000 : 130);
+      if(r && r.moves.length < best.moves.length && verify(r.moves)) best = r;
+      else break;
+    }
+  }
+  const ms = Date.now()-t0;
+  if(!best) return {ok:false, error:'未找到解（超时）。可再点一次求解，或换用另一种模式', ms, buildMs};
+  return {ok:true, alg:algStr(best.moves), len:best.moves.length, moves:best.moves,
+          ms, buildMs, d1:best.d1, d2:best.d2};
+}
+
+function algToMoves(alg){
+  return alg.trim()? alg.trim().split(/\s+/).map(t=>{
+    const f='URFDLB'.indexOf(t[0]);
+    if(f<0) throw new Error('非法公式: '+t);
+    return f*3 + (t[1]==='2'?1:(t[1]==="'"?2:0));
+  }) : [];
+}
+/* 逆公式：与 solve 结果互为逆 */
+function invertAlg(alg){
+  return alg.trim()? alg.trim().split(/\s+/).reverse().map(t=>{
+    const f=t[0], s=t.slice(1);
+    return s==='2' ? f+'2' : (s==="'" ? f : f+"'");
+  }).join(' ') : '';
+}
+
+const SolverAPI = {decode, encode, solveFacelets, invertAlg, algToMoves, applyMoves, isSolved,
+                   validate, buildPruning, buildMoves, MOVE, MOVE_STR, algStr, turnStr, SOLVED_STR};
+
+if(typeof module!=='undefined' && module.exports) module.exports = SolverAPI;
+
+/* Worker 入口（仅在 Worker 里生效） */
+if(typeof self!=='undefined'){
+  self.SolverAPI = SolverAPI;
+  const inWorker = (typeof importScripts==='function') && (typeof WorkerGlobalScope!=='undefined');
+  if(inWorker){
+    let ready=false;
+    self.onmessage = function(e){
+      const msg = e.data||{};
+      if(msg.type!=='solve') return;
+      try{
+        if(!ready){ self.postMessage({type:'progress', text:'首次使用：正在生成搜索表…'}); }
+        const r = solveFacelets(msg.facelets, {mode:msg.mode, timeMs:msg.timeMs});
+        ready = true;
+        self.postMessage(Object.assign({type:'result', id:msg.id}, r));
+      }catch(err){
+        self.postMessage({type:'result', id:msg.id, ok:false, error:String((err&&err.message)||err)});
+      }
+    };
+  }
+}
+
+</script>
+
+<script>
+"use strict";
+/* ============ 基础数据 ============ */
+const COLOR_REFS = { // 名称 -> 参考色 (sRGB)
+  '白': [242,243,245], '黄': [255,212,0], '红': [176,28,36],
+  '橙': [255,98,14],  '绿': [0,152,96], '蓝': [26,84,168],
+};
+const COLOR_HEX = { '白':'#f2f3f5','黄':'#ffd400','红':'#b01c24','橙':'#ff620e','绿':'#009860','蓝':'#1a54a8' };
+// 固定配色方案（上黄 正红 右绿 → 白对黄、橙对红、蓝对绿）
+const COLOR_TO_FACE = { '黄':'U', '红':'F', '绿':'R', '白':'D', '蓝':'L', '橙':'B' };
+const FACE_LETTERS = ['U','R','F','D','L','B']; // facelet 串顺序
+const FACE_DEFS = { // n=法向(朝外), up/right=标准读图方向(从外面看该面)
+  U:{n:[0,1,0],  up:[0,0,-1], right:[1,0,0]},
+  D:{n:[0,-1,0], up:[0,0,1],  right:[1,0,0]},
+  F:{n:[0,0,1],  up:[0,1,0],  right:[1,0,0]},
+  B:{n:[0,0,-1], up:[0,1,0],  right:[-1,0,0]},
+  R:{n:[1,0,0],  up:[0,1,0],  right:[0,0,-1]},
+  L:{n:[-1,0,0], up:[0,1,0],  right:[0,0,1]},
+};
+
+const vadd=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const vsub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>{const l=Math.hypot(...a);return a.map(c=>c/l);};
+const adjacent=(x,y)=> x!==y && dot(FACE_DEFS[x].n, FACE_DEFS[y].n) > -0.5;
+
+// 每个面标准读图时 4 个角对应的空间角块坐标（TL,TR,BR,BL）
+function stdCorners(letter){
+  const d=FACE_DEFS[letter];
+  return {
+    TL: [d.n[0]+d.up[0]-d.right[0], d.n[1]+d.up[1]-d.right[1], d.n[2]+d.up[2]-d.right[2]],
+    TR: [d.n[0]+d.up[0]+d.right[0], d.n[1]+d.up[1]+d.right[1], d.n[2]+d.up[2]+d.right[2]],
+    BR: [d.n[0]-d.up[0]+d.right[0], d.n[1]-d.up[1]+d.right[1], d.n[2]-d.up[2]+d.right[2]],
+    BL: [d.n[0]-d.up[0]-d.right[0], d.n[1]-d.up[1]-d.right[1], d.n[2]-d.up[2]-d.right[2]],
+  };
+}
+function validCorner(T,A,B){
+  return T&&A&&B && new Set([T,A,B]).size===3 && adjacent(T,A)&&adjacent(A,B)&&adjacent(T,B);
+}
+
+/* ============ 角点身份匹配（与点击顺序无关） ============ */
+function roughCamera(T,A,B){
+  const cdir=norm(vadd(vadd(FACE_DEFS[T].n,FACE_DEFS[A].n),FACE_DEFS[B].n));
+  const camPos=cdir.map(c=>c*6);
+  const fwd=norm(camPos.map(c=>-c));
+  const nT=FACE_DEFS[T].n;
+  let upv=nT.map((c,i)=>c-dot(nT,fwd)*fwd[i]);
+  upv=norm(upv);
+  const right=norm(cross(fwd,upv));
+  return p=>{const rel=vsub(p,camPos);const z=dot(rel,fwd);
+    return [dot(rel,right)/z*8, -dot(rel,upv)/z*8];}; // 屏幕y向下
+}
+function normalizePts(pts){
+  const n=pts.length;
+  const cx=pts.reduce((s,p)=>s+p[0],0)/n, cy=pts.reduce((s,p)=>s+p[1],0)/n;
+  let rms=0; for(const p of pts) rms+=(p[0]-cx)**2+(p[1]-cy)**2;
+  rms=Math.sqrt(rms/n)||1;
+  return pts.map(p=>[(p[0]-cx)/rms,(p[1]-cy)/rms]);
+}
+const PERMS4=(()=>{const r=[];(function f(arr,cur){
+  if(!arr.length){r.push(cur);return;}
+  for(let i=0;i<arr.length;i++) f(arr.slice(0,i).concat(arr.slice(i+1)),cur.concat(arr[i]));
+})([0,1,2,3],[]);return r;})();
+// 返回 {TL,TR,BR,BL: 点击序号, _err}；refs=三面重心，用于消除对称拍摄时顶面菱形的镜像歧义
+function assignCornersByProjection(quad, letter, T, A, B, refs){
+  const proj=roughCamera(T,A,B);
+  const std=stdCorners(letter);
+  const roles=['TL','TR','BR','BL'];
+  const projPts=normalizePts(roles.map(r=>proj(std[r])));
+  const qPts=normalizePts(quad);
+  const scored=PERMS4.map(perm=>{
+    let d=0;
+    for(let i=0;i<4;i++) d+=(qPts[i][0]-projPts[perm[i]][0])**2+(qPts[i][1]-projPts[perm[i]][1])**2;
+    return {perm, d};
+  }).sort((a,b)=>a.d-b.d);
+  const bestD=scored[0].d;
+  const tol=bestD*0.10+1e-6;
+  let near=scored.filter(c=>c.d<=bestD+tol);
+  if(near.length>1 && refs){
+    const prox=perm=>{
+      let s=0;
+      for(let i=0;i<4;i++){
+        const c=std[roles[i]], p=quad[perm[i]];
+        for(const f of [T,A,B]){
+          if(dot(c,FACE_DEFS[f].n)===1 && refs[f])
+            s+=Math.hypot(p[0]-refs[f][0], p[1]-refs[f][1]);
+        }
+      }
+      return s;
+    };
+    near.sort((a,b)=> prox(a.perm)-prox(b.perm) || a.d-b.d);
+  }
+  const best=near[0].perm;
+  // best[i] = 模板角 i 匹配到的点击序号；map[角色] = 对应点击序号
+  const inv=[];
+  best.forEach((clickIdx, tplIdx)=>{ inv[clickIdx]=tplIdx; });
+  const map={};
+  roles.forEach((r,i)=>map[r]=inv[i]);
+  map._err=Math.sqrt(bestD/4);
+  return map;
+}
+
+/* ============ 颜色 ============ */
+function srgb2lab(r,g,b){
+  let f=c=>{c/=255; return c>0.04045? Math.pow((c+0.055)/1.055,2.4): c/12.92;};
+  const R=f(r),G=f(g),B=f(b);
+  let X=(0.4124*R+0.3576*G+0.1805*B)/0.95047,
+      Y=(0.2126*R+0.7152*G+0.0722*B),
+      Z=(0.0193*R+0.1192*G+0.9505*B)/1.08883;
+  const g2=t=> t>0.008856? Math.cbrt(t): (7.787*t+16/116);
+  X=g2(X);Y=g2(Y);Z=g2(Z);
+  return [116*Y-16, 500*(X-Y), 200*(Y-Z)];
+}
+function rgb2hsv(r,g,b){
+  r/=255;g/=255;b/=255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+  let h=0;
+  if(d>0){
+    if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4;
+    h*=60; if(h<0)h+=360;
+  }
+  return [h, mx? d/mx:0, mx];
+}
+const REF_LAB={}; for(const k in COLOR_REFS) REF_LAB[k]=srgb2lab(...COLOR_REFS[k]);
+const dist3=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+function classify(rgb){
+  const [h,s,v]=rgb2hsv(...rgb);
+  // 白：低饱和度且不太暗（照片上的橙色贴纸常因反光变浅，Lab 下靠近白，先按色相/饱和度把关）
+  if(s<0.18 && v>0.55) return '白';
+  // 橙：色相 15-45° 且饱和度较高（亮橙/泛白橙在 Lab 下易近白，用色相强制纠正）
+  if(h>=15 && h<45 && s>=0.45) return '橙';
+  const L=srgb2lab(...rgb);
+  const scored=Object.keys(REF_LAB).map(k=>[k,dist3(L,REF_LAB[k])]).sort((a,b)=>a[1]-b[1]);
+  const [k1,d1]=scored[0], [k2,d2]=scored[1];
+  // 红/橙易混：红色深（色相≈0°），橙色明亮（色相≈20-35°）。距离接近时用色相裁决
+  const redOrange=((k1==='红'&&k2==='橙')||(k1==='橙'&&k2==='红'));
+  if(redOrange && d2/Math.max(d1,1e-9)<2.5){
+    return (h<15||h>345)?'红':'橙';
+  }
+  // Lab 判白但色相/饱和度明显偏橙 → 纠正为橙
+  if(k1==='白' && h>=15 && h<=45 && s>0.28) return '橙';
+  return k1;
+}
+
+/* ============ 状态：多张照片并排 ============ */
+const photos=[];              // 每张照片一个会话 {im,cv,ctx,scale,clicks,quads,phaseIdx,grids}
+const stickers={U:mk9(),R:mk9(),F:mk9(),D:mk9(),L:mk9(),B:mk9()}; // 每格 {rgb,name} 或 null
+function mk9(){return new Array(9).fill(null);}
+
+/* ============ DOM ============ */
+const $=id=>document.getElementById(id);
+const photoArea=$('photoArea'), dropZone=$('dropZone');
+const PHASE_NAMES=['照片上方的面（顶面）','照片左侧的面','照片右侧的面'];
+
+/* ============ 照片会话管理 ============ */
+function loadImageFile(file){
+  if(!file||!file.type.startsWith('image/')) return;
+  const url=URL.createObjectURL(file);
+  const im=new Image();
+  im.onload=()=>{
+    const last=photos[photos.length-1];
+    let p;
+    if(last && last.phaseIdx<3){
+      // 当前照片还没标完 → 替换其图片重新标注
+      p=last; replacePhotoImage(last, im);
+    } else {
+      p=addPhoto(im);
+    }
+    // 上传即自动识别角点（失败则退回手动点角）
+    autoDetectPhoto(p);
+    updateUI(); photos.forEach(redraw);
+  };
+  im.src=url;
+}
+function addPhoto(im){
+  const cv=document.createElement('canvas');
+  const p={ im, cv, ctx:cv.getContext('2d',{willReadFrequently:true}),
+    scale:1, clicks:[], quads:[null,null,null], phaseIdx:0, grids:{}, auto:false, tagEl:null, cardEl:null };
+  cv.addEventListener('click',e=>onCanvasClick(p,e));
+  cv.addEventListener('pointerdown',e=>onCanvasPointerDown(p,e));
+  cv.addEventListener('pointermove',e=>onCanvasHover(p,e));
+  photos.push(p);
+  rebuildPhotoDom();
+  return p;
+}
+function replacePhotoImage(p, im){
+  p.im=im; p.clicks=[]; p.quads=[null,null,null]; p.phaseIdx=0; p.grids={}; p.auto=false;
+  fitCanvas(p);
+}
+function rebuildPhotoDom(){
+  photoArea.innerHTML='';
+  photos.forEach((p,i)=>{
+    const card=document.createElement('div');
+    card.className='photoCard';
+    const tag=document.createElement('div');
+    tag.className='photoTag';
+    card.appendChild(tag);
+    card.appendChild(p.cv);
+    photoArea.appendChild(card);
+    p.cardEl=card; p.tagEl=tag;
+  });
+  if(!photos.length) photoArea.appendChild(dropZone);
+  dropZone.style.display = photos.length? 'none' : 'flex';
+  photos.forEach(fitCanvas);
+}
+
+/* ============ 图片载入入口 ============ */
+document.addEventListener('paste',e=>{
+  for(const item of (e.clipboardData||{}).items||[]){
+    if(item.type.startsWith('image/')){ loadImageFile(item.getAsFile()); e.preventDefault(); return; }
+  }
+});
+['dragover','dragleave','drop'].forEach(ev=>{
+  photoArea.addEventListener(ev,e=>{
+    e.preventDefault();
+    dropZone.classList.toggle('drag', ev==='dragover');
+    if(ev==='drop') loadImageFile(e.dataTransfer.files[0]);
+  });
+});
+$('fileInput').addEventListener('change',e=>loadImageFile(e.target.files[0]));
+
+function fitCanvas(p){
+  const cols=Math.min(photos.length,2);          // 最多两张并排
+  const maxW=Math.min(640, Math.floor((photoArea.clientWidth-16*cols-12*(cols-1))/cols));
+  const maxH=window.innerHeight*0.72;
+  p.scale=Math.min(maxW/p.im.naturalWidth, maxH/p.im.naturalHeight, 1);
+  p.cv.width=Math.round(p.im.naturalWidth*p.scale);
+  p.cv.height=Math.round(p.im.naturalHeight*p.scale);
+  redraw(p);
+}
+
+/* ============ 交互：在照片上点角 ============ */
+function onCanvasClick(p,e){
+  if(p._skipClick){ p._skipClick=false; return; }   // 拖角点后不要误加点
+  if(p.phaseIdx>=3) return;
+  if(p!==photos[photos.length-1]){ toast('请先完成最新一张照片的标注'); return; }
+  try{
+    const [x,y]=imgPt(p,e);
+    p.clicks.push([x,y]);
+    if(p.clicks.length===4) completeFace(p);
+  }catch(err){
+    console.error(err);
+    toast('处理出错：'+err.message+'，请重试或撤销');
+    p.clicks=[];
+  }
+  updateUI(); redraw(p);
+}
+function imgPt(p,e){
+  const rect=p.cv.getBoundingClientRect();
+  return [(e.clientX-rect.left)/p.scale, (e.clientY-rect.top)/p.scale];
+}
+function completeFace(p){
+  const cx=p.clicks.reduce((s,q)=>s+q[0],0)/4, cy=p.clicks.reduce((s,q)=>s+q[1],0)/4;
+  // 中心取色（画布坐标 = 图像坐标 × scale）
+  const rC=Math.max(3,Math.round(Math.min(60*p.scale, 0.02*Math.min(p.cv.width,p.cv.height))));
+  const rgb=medianColor(p,Math.round(cx*p.scale),Math.round(cy*p.scale),rC);
+  const name=classify(rgb);
+  const letter=COLOR_TO_FACE[name];
+  // 同一张照片里两个面不能同色（中心色判重）
+  if(p.quads.some(q=>q&&q.letter===letter)){
+    toast(`中心色判为「${name}」（${letter} 面），与本照片另一个面重复——请检查光线后重选本照片角点`);
+    p.clicks=[]; return;
+  }
+  p.quads[p.phaseIdx]={pts:p.clicks.map(q=>q.slice()), letter, centerName:name, cx, cy};
+  p.clicks=[]; p.phaseIdx++;
+  if(p.phaseIdx===3) finalizePhoto(p);
+}
+function finalizePhoto(p){
+  // 几何确定 T/A/B：重心 y 最小者=照片上方（顶面）；其余按重心 x 分左右
+  const had=new Set(FACE_LETTERS.filter(f=>stickers[f]&&stickers[f][0]));
+  const info=p.quads.map(q=>({q, cx:q.cx, cy:q.cy}));
+  const byY=[...info].sort((a,b)=>a.cy-b.cy);
+  const tq=byY[0];
+  const [lq,rq]=byY.slice(1).sort((a,b)=>a.cx-b.cx);
+  const T=tq.q.letter, A=lq.q.letter, B=rq.q.letter;
+  if(!validCorner(T,A,B)){
+    toast(`三个面字母 ${T}/${A}/${B} 不构成共享一个角的相邻组合，颜色识别可能有误，请重选本照片角点`);
+    p.quads=[null,null,null]; p.phaseIdx=0; p.grids={}; p.auto=false; return;
+  }
+  let worstErr=0;
+  const refs={T:[tq.q.cx,tq.q.cy], A:[lq.q.cx,lq.q.cy], B:[rq.q.cx,rq.q.cy]};
+  for(const q of [tq.q,lq.q,rq.q]){
+    const map=assignCornersByProjection(q.pts, q.letter, T, A, B, refs);
+    if(map._err>0.35) worstErr=Math.max(worstErr,map._err);
+    p.grids[q.letter]={corners:q.pts.map(v=>v.slice()), map, pts:null};
+    resampleFace(p, q.letter);
+  }
+  // 六色数量统计只做提示（用户已撤回"自动重新分配贴纸"的要求），需要时可点统计卡片里的按钮手动校正
+  const doneFaces=FACE_LETTERS.filter(f=>stickers[f]&&stickers[f][0]).length;
+  const ov=[tq.q.letter,lq.q.letter,rq.q.letter].filter(f=>had.has(f));
+  let msg=doneFaces>=6
+    ? `六面全部录入完成（共 ${photos.length} 张照片）！可复制编码去求解了`
+    : `照片 ${photos.length} 录入完成（已录 ${doneFaces}/6 面）。转动魔方后点「录入下一张照片」继续`;
+  if(p.auto) msg=`自动识别完成：${T}/${A}/${B} 三面（已录 ${doneFaces}/6 面）`;
+  if(ov.length) msg+=`；注意 ${ov.join('、')} 面此前已录入，本次数据已覆盖`;
+  if(worstErr>0) toast(msg+'（角点匹配误差偏高，可拖动角点微调）');
+  else toast(msg);
+}
+function resampleFace(p, letter){
+  const g=p.grids[letter]; if(!g) return;
+  const pts=gridPoints(g.corners, g.map);
+  const minEdge=minEdgeLen(g.corners);
+  const r=Math.max(3,Math.min(minEdge*0.05, minEdge*0.11));   // 图像坐标系半径
+  const rCv=Math.max(2,Math.round(r*p.scale));                // 换算到画布坐标
+  const arr=new Array(9);
+  for(let i=0;i<9;i++){
+    const rgb=medianColor(p,Math.round(pts[i].x*p.scale),Math.round(pts[i].y*p.scale),rCv);
+    arr[i]={rgb, name:classify(rgb)};
+  }
+  stickers[letter]=arr; g.pts=pts;
+}
+
+/* ============ 角点拖动微调（自动识别的结果可手动修正） ============ */
+let cornerDrag=null;
+function hitCorner(p,pt){
+  let best=null, bd=18/p.scale;
+  for(const letter in p.grids){
+    const cs=p.grids[letter].corners;
+    for(let k=0;k<4;k++){
+      const d=Math.hypot(cs[k][0]-pt[0], cs[k][1]-pt[1]);
+      if(d<bd){ bd=d; best={letter,k}; }
+    }
+  }
+  return best;
+}
+function onCanvasPointerDown(p,e){
+  if(p.phaseIdx<3 || e.button!==0) return;
+  const hit=hitCorner(p, imgPt(p,e));
+  if(!hit) return;
+  e.preventDefault();
+  p._skipClick=true;
+  cornerDrag={p, letter:hit.letter, k:hit.k};
+  window.addEventListener('pointermove', onCornerMove);
+  window.addEventListener('pointerup', onCornerUp);
+}
+function onCornerMove(e){
+  if(!cornerDrag) return;
+  const {p,letter,k}=cornerDrag;
+  const pt=imgPt(p,e);
+  p.grids[letter].corners[k]=[pt[0],pt[1]];
+  resampleFace(p, letter);
+  redraw(p); renderFacelets(); render3D(); renderString(); renderStats();
+}
+function onCornerUp(){
+  if(!cornerDrag) return;
+  const {p,letter}=cornerDrag;
+  cornerDrag=null;
+  window.removeEventListener('pointermove', onCornerMove);
+  window.removeEventListener('pointerup', onCornerUp);
+  redraw(p); updateUI();
+  toast(`${letter} 面角点已微调，颜色已重新采样`);
+}
+function onCanvasHover(p,e){
+  if(cornerDrag || p.phaseIdx<3) return;
+  p.cv.style.cursor = hitCorner(p,imgPt(p,e)) ? 'grab' : 'crosshair';
+}
+
+/* ============ 自动识别：从照片里找出三个面的四角 ============ */
+const AUTODETECT_BEGIN = true; /* AUTODETECT-BEGIN */
+// 纯函数：输入 RGBA 像素，返回最多 3 个面 {corners:[[x,y]×4], center:[x,y]}
+function detectFacesInPixels(data,W,H){
+  const N=W*H;
+  const type=new Uint8Array(N);   // 1=彩色贴纸  2=可能的白色贴纸
+  for(let i=0,p=0;i<N;i++,p+=4){
+    const [h,s,v]=rgb2hsv(data[p],data[p+1],data[p+2]);
+    if(s>=0.30 && v>=0.15) type[i]=1;
+    else if(s<0.13 && v>=0.62) type[i]=2;
+  }
+  const seen=new Uint8Array(N), stack=new Int32Array(N), pixBuf=new Int32Array(N);
+  const minArea=Math.max(20, Math.round(N*0.0006));
+  const maxArea=Math.round(N*0.13);   // 放宽：近距离满框拍摄时一块粘连可能占画面 10%+
+  const raw=[];
+  let pixCount=0;
+  for(let i=0;i<N;i++){
+    if(!type[i]||seen[i]) continue;
+    const t=type[i];
+    const pixStart=pixCount;
+    let sp=0; stack[sp++]=i; seen[i]=1;
+    let sx=0,sy=0,rs=0,gs=0,bs=0;
+    let sxx=0,syy=0,sxy=0,minX=1e9,maxX=-1,minY=1e9,maxY=-1;
+    while(sp){
+      const idx=stack[--sp], x=idx%W, y=(idx-x)/W;
+      pixBuf[pixCount++]=idx;
+      sx+=x; sy+=y; sxx+=x*x; syy+=y*y; sxy+=x*y;
+      const p4=idx*4; rs+=data[p4]; gs+=data[p4+1]; bs+=data[p4+2];
+      if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const nx=x+dx, ny=y+dy;
+        if(nx<0||ny<0||nx>=W||ny>=H) continue;
+        const ni=ny*W+nx;
+        if(seen[ni]||type[ni]!==t) continue;
+        seen[ni]=1; stack[sp++]=ni;
+      }
+    }
+    const cnt=pixCount-pixStart;
+    if(cnt<minArea||cnt>maxArea) continue;
+    const bw=maxX-minX+1, bh=maxY-minY+1;
+    if(bw<4||bh<4||cnt/(bw*bh)<0.45) continue;
+    raw.push({t, cnt, px:pixStart, cx:sx/cnt, cy:sy/cnt, sxx, syy, sxy,
+              rgb:[rs/cnt,gs/cnt,bs/cnt], bw, bh, area:cnt});
+  }
+  if(!raw.length) return [];
+  // 单张贴纸面积估计：取面积的众数（粘连块是单张贴纸的整数倍，众数即单张贴纸面积）
+  const areas=raw.filter(b=>b.t===1).map(b=>b.area).sort((a,b)=>a-b);
+  let estArea=areas.length? areas[areas.length>>1] : 1;
+  if(areas.length>=5){
+    let bestCnt=-1, bestSum=0;
+    for(const a of areas){
+      let c=0, s=0;
+      for(const b of areas) if(b>=a*0.82 && b<=a*1.22){ c++; s+=b; }
+      if(c>bestCnt){ bestCnt=c; bestSum=s; }
+    }
+    if(bestCnt>0) estArea=bestSum/bestCnt;
+  }
+  // 单贴纸点（未被同色相邻贴纸粘连的），最稳健
+  const single=[];
+  const merged=[];
+  for(const b of raw){
+    if(b.t!==1) continue;
+    if(b.area<=estArea*1.55) single.push({x:b.cx, y:b.cy});
+    else merged.push(b);
+  }
+  // 白色贴纸：尺寸与贴纸相仿、且落在彩色贴纸凸包内（排除白色背景/桌面）
+  const hull=convexHull(single.map(p=>[p.x,p.y]));
+  let hullOut=[];
+  if(hull.length>=3){
+    const hx=hull.reduce((s,p)=>s+p[0],0)/hull.length, hy=hull.reduce((s,p)=>s+p[1],0)/hull.length;
+    hullOut=hull.map(([x,y])=>[hx+(x-hx)*1.25, hy+(y-hy)*1.25]);
+  }
+  for(const b of raw){
+    if(b.t!==2) continue;
+    if(b.area<estArea*0.4 || b.area>estArea*3.6) continue;
+    const parts=b.area>estArea*1.55 ? splitBlob(b, estArea, W, pixBuf) : [{x:b.cx, y:b.cy}];
+    for(const q of parts){
+      if(hullOut.length && !pointInPoly(q.x,q.y,hullOut)) continue;
+      single.push(q);
+    }
+  }
+  lastPoints=single;
+  let faces=fitFaceLattices(single, data, W, H);
+  if(faces.length<3 && merged.length){
+    // 退一步：把同色/跨棱粘连的大块拆开，补足缺失的面
+    const all=single.slice();
+    for(const b of merged) all.push(...splitBlob(b, estArea, W, pixBuf));
+    const f2=fitFaceLattices(all, data, W, H);
+    if(f2.length>faces.length) faces=f2;
+  }
+  return faces;
+}
+// 粘连块拆分为 k 个贴纸中心：二维 k-means（k-means++ 初始化 + 加权修正）。
+// 相比"沿主轴一维切分"，二维聚类对 L 形块、跨棱块都能给出更合理的中心。
+function splitBlob(b, estArea, W, pixBuf, kIn){
+  const k=kIn||Math.max(2, Math.min(4, Math.round(b.area/estArea)));
+  if(k<2) return [{x:b.cx, y:b.cy}];
+  const n=b.cnt;
+  const xs=new Float32Array(n), ys=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const idx=pixBuf[b.px+i], x=idx%W;
+    xs[i]=x; ys[i]=(idx-x)/W;
+  }
+  // k-means++：首个取质心，之后取距离现有中心最远的像素
+  const cx=[b.cx], cy=[b.cy];
+  while(cx.length<k){
+    let bi=0, bd=-1;
+    for(let i=0;i<n;i++){
+      let d=1e18;
+      for(let c=0;c<cx.length;c++) d=Math.min(d, (xs[i]-cx[c])**2+(ys[i]-cy[c])**2);
+      if(d>bd){ bd=d; bi=i; }
+    }
+    cx.push(xs[bi]); cy.push(ys[bi]);
+  }
+  const lab=new Int32Array(n);
+  for(let it=0;it<14;it++){
+    for(let i=0;i<n;i++){
+      let bi2=0, bd=1e18;
+      for(let c=0;c<k;c++){ const d=(xs[i]-cx[c])**2+(ys[i]-cy[c])**2; if(d<bd){bd=d;bi2=c;} }
+      lab[i]=bi2;
+    }
+    for(let c=0;c<k;c++){
+      let sx=0,sy=0,m=0;
+      for(let i=0;i<n;i++) if(lab[i]===c){ sx+=xs[i]; sy+=ys[i]; m++; }
+      if(m){ cx[c]=sx/m; cy[c]=sy/m; }
+    }
+  }
+  const acc=Array.from({length:k},()=>({x:0,y:0,n:0}));
+  for(let i=0;i<n;i++){ const a=acc[lab[i]]; a.x+=xs[i]; a.y+=ys[i]; a.n++; }
+  const out=[];
+  for(const a of acc) if(a.n>b.cnt*0.16) out.push({x:a.x/a.n, y:a.y/a.n});
+  return out.length? out : [{x:b.cx, y:b.cy}];
+}
+// 从一堆贴纸中心点里拟合最多 3 个 3x3 网格（每个网格 = 一个面）
+// 思路：枚举所有"中心+两个相邻"的三元组作为网格假设，取命中贴纸最多的若干假设，
+// 再从中挑「互不重叠、且两两共享角点（真实照片里三个面共享一个角）」的最佳组合
+function fitFaceLattices(ptsIn, data, W, H){
+  const pts=ptsIn.slice();
+  if(pts.length<7) return [];
+  const nn=pts.map((p,i)=>{
+    let m=1e9;
+    for(let j=0;j<pts.length;j++) if(j!==i) m=Math.min(m, Math.hypot(p.x-pts[j].x, p.y-pts[j].y));
+    return m;
+  }).sort((a,b)=>a-b);
+  const medNN=nn[nn.length>>1]||10;
+  const cand=pts.slice(0,60);
+  const rawHyps=[];              // 全部去重后的网格假设（先全收，再用双重判据筛）
+  const seenKey=new Set();
+  for(let a=0;a<cand.length;a++){
+    for(let b=0;b<cand.length;b++){
+      if(b===a) continue;
+      const axx=cand[b].x-cand[a].x, axy=cand[b].y-cand[a].y;
+      const la=Math.hypot(axx,axy);
+      if(la<medNN*0.40 || la>medNN*2.2) continue;
+      for(let c=0;c<cand.length;c++){
+        if(c===a||c===b) continue;
+        const ayx=cand[c].x-cand[a].x, ayy=cand[c].y-cand[a].y;
+        const lb=Math.hypot(ayx,ayy);
+        if(lb<medNN*0.40 || lb>medNN*2.2) continue;
+        const r=la/lb; if(r>3.0||r<0.34) continue;   // 强透视时一个轴可压到 0.47 倍
+        const cosang=(axx*ayx+axy*ayy)/(la*lb);
+        if(Math.abs(cosang)>0.94) continue;   // 两轴夹角 30°~150°（顶面很扁时约 45°）
+        const det=axx*ayy-axy*ayx;
+        if(Math.abs(det)<1e-6) continue;
+        const tol=0.28*Math.min(la,lb);
+        const nodes=new Array(9).fill(-1);
+        let hit=0, res=0;
+        for(let k=0;k<cand.length;k++){
+          const dx=cand[k].x-cand[a].x, dy=cand[k].y-cand[a].y;
+          const ii=Math.round((dx*ayy-dy*ayx)/det);
+          const jj=Math.round((axx*dy-axy*dx)/det);
+          if(ii<-1||ii>1||jj<-1||jj>1) continue;
+          const px=cand[a].x+ii*axx+jj*ayx, py=cand[a].y+ii*axy+jj*ayy;
+          const dd=Math.hypot(cand[k].x-px, cand[k].y-py);
+          if(dd>tol) continue;
+          const key=(ii+1)*3+(jj+1);
+          if(nodes[key]>=0) continue;
+          nodes[key]=k; hit++; res+=dd;
+        }
+        if(hit<3) continue;
+        const sig=nodes.slice().sort((x,y)=>x-y).join(',');
+        if(seenKey.has(sig)) continue;
+        seenKey.add(sig);
+        rawHyps.push({hit, res, cand, nodes, cell:(la+lb)/2});
+      }
+    }
+  }
+  if(!rawHyps.length) return [];
+  const project=(h,u,v)=>{const d=h[6]*u+h[7]*v+1; return [(h[0]*u+h[1]*v+h[2])/d,(h[3]*u+h[4]*v+h[5])/d];};
+  const pairsOf=(nodes,cand)=>{
+    const out=[];
+    for(let k=0;k<9;k++) if(nodes[k]>=0){
+      const ii=Math.floor(k/3)-1, jj=(k%3)-1, pt=cand[nodes[k]];
+      out.push([ii,jj,pt.x,pt.y]);
+    }
+    return out;
+  };
+  // 关键：先用少数命中点拟合单应，再用该单应把"全部点"重新分配到 9 个格位（透视正确），
+  // 迭代两轮。否则只有中心 4 点时外推到面四角会被透视拉偏 20% 以上。
+  const solveFace=(hh)=>{
+    let nodes=hh.nodes, q=buildFaceQuad(pairsOf(nodes,hh.cand), hh);
+    let hit=nodes.filter(v=>v>=0).length;
+    for(let it=0;it<2;it++){
+      if(!q.h) break;
+      const inv=invertH(q.h);
+      if(!inv) break;
+      const nn=new Array(9).fill(-1), bd=new Array(9).fill(1e18);
+      for(let k=0;k<hh.cand.length;k++){
+        const uv=inv(hh.cand[k].x, hh.cand[k].y);
+        if(!uv) continue;
+        const jj=Math.round(uv[0]), ii=Math.round(uv[1]);
+        if(ii<-1||ii>1||jj<-1||jj>1) continue;
+        const pp=project(q.h,jj,ii);
+        const d=Math.hypot(hh.cand[k].x-pp[0], hh.cand[k].y-pp[1]);
+        if(d>hh.cell*0.36) continue;
+        const key=(ii+1)*3+(jj+1);
+        if(d<bd[key]){ bd[key]=d; nn[key]=k; }
+      }
+      const nh=nn.filter(v=>v>=0).length;
+      if(nh<=hit) break;
+      nodes=nn; hit=nh; q=buildFaceQuad(pairsOf(nodes,hh.cand), hh);
+    }
+    return {hit, nodes, q};
+  };
+  // 先用单应迭代解出每个假设（含"透视正确的节点重分配"），再按最终命中数过滤；
+  // 外推飞到画面外的说明三点几乎共线，直接剔除。
+  const all=[];
+  for(const h of rawHyps){
+    const r=solveFace(h);
+    if(r.hit<5) continue;
+    const corners=r.q.corners.map(p=>[p[0],p[1]]);
+    let ok=true;
+    for(const p of corners)
+      if(p[0]<-0.35*W||p[0]>1.35*W||p[1]<-0.35*H||p[1]>1.35*H){ ok=false; break; }
+    if(!ok) continue;
+    all.push({hit:r.hit, nodes:r.nodes, corners, h:r.q.h,
+              cellVar:cellVariance(data,W,H,corners,r.q.h)});
+  }
+  if(!all.length) return [];
+  const faceSize=q=>{
+    const c=q.corners;
+    return (Math.hypot(c[0][0]-c[1][0],c[0][1]-c[1][1])+Math.hypot(c[1][0]-c[2][0],c[1][1]-c[2][1]))/2;
+  };
+  // 按"角点位置"去重聚类：几乎同一个面的假设只保留命中最多的那个，避免候选被同一处的
+  // 上百个微变体占满，把真正不同的面挤掉。
+  const uniq=[];
+  for(const q of all.slice().sort((a,b)=> b.hit-a.hit || a.cellVar-b.cellVar)){
+    const s=faceSize(q);
+    let dup=false;
+    for(const r of uniq){
+      const ss=Math.min(s, faceSize(r))*0.30;
+      let near=0;
+      for(const ca of q.corners) for(const cb of r.corners)
+        if(Math.hypot(ca[0]-cb[0], ca[1]-cb[1])<ss) near++;
+      if(near>=3){ dup=true; break; }
+    }
+    if(!dup) uniq.push(q);
+  }
+  const refined=uniq.slice(0,60);
+  const shareCnt=(p,q)=>{
+    const s=(faceSize(p)+faceSize(q))/2;
+    let n=0;
+    for(const ca of p.corners) for(const cb of q.corners)
+      if(Math.hypot(ca[0]-cb[0], ca[1]-cb[1]) < s*0.35) n++;
+    return Math.min(2,n);
+  };
+  const overlap=(p,q)=>{
+    const a=new Set(p.nodes.filter(i=>i>=0));
+    return q.nodes.some(i=>i>=0 && a.has(i));
+  };
+  // 立方体角模式检验：真实照片里三个可见面在投影后必须拼成一个"立方体角"——
+  // 12 个角实例只落在 7 个不同位置上：1 个三面共用角 + 3 个两面共用角 + 3 个独有角。
+  const cubeCornerPattern=arr=>{
+    if(arr.length<3) return false;
+    let s=0; for(const f of arr) s+=faceSize(f); s/=arr.length;
+    const tol=s*0.30;
+    const cl=[];
+    for(const f of arr) for(const c of f.corners){
+      const g=cl.find(q=>Math.hypot(q.x-c[0], q.y-c[1])<tol);
+      if(g) g.n++; else cl.push({x:c[0], y:c[1], n:1});
+    }
+    if(cl.length!==7) return false;
+    const cnt=[0,0,0,0];
+    for(const c of cl){ if(c.n<1||c.n>3) return false; cnt[c.n]++; }
+    return cnt[3]===1 && cnt[2]===3 && cnt[1]===3;
+  };
+  const hFromCorners=q=>fitHomographyLSQ([
+    [-1.5,-1.5,q[0][0],q[0][1]],[1.5,-1.5,q[1][0],q[1][1]],
+    [1.5,1.5,q[2][0],q[2][1]],[-1.5,1.5,q[3][0],q[3][1]]]);
+  const assignNodes=(h,cell)=>{
+    const nn=new Array(9).fill(-1), bd=new Array(9).fill(1e18);
+    const inv=invertH(h);
+    if(!inv) return {nn, hit:0};
+    for(let k=0;k<cand.length;k++){
+      const uv=inv(cand[k].x,cand[k].y);
+      if(!uv) continue;
+      const jj=Math.round(uv[0]), ii=Math.round(uv[1]);
+      if(ii<-1||ii>1||jj<-1||jj>1) continue;
+      const pp=project(h,jj,ii);
+      const d=Math.hypot(cand[k].x-pp[0], cand[k].y-pp[1]);
+      if(d>cell*0.36) continue;
+      const key=(ii+1)*3+(jj+1);
+      if(d<bd[key]){ bd[key]=d; nn[key]=k; }
+    }
+    return {nn, hit:nn.filter(v=>v>=0).length};
+  };
+  // ---- 立方体三角解析：两个相邻面已知 → 第三个面 ----
+  // 三面在一个立方体角相交。A、B 共享一条棱（2 个角点），A 与 C、B 与 C 各再共享一条棱。
+  // 于是 C 的四角里三个已确定，只剩"远端角"（三面都不共用的第 7 个角）。
+  // 该角用消失点精确求出：C 中 a→D 的边与 V→b 在三维里平行，反之亦然，
+  // 所以 D = 直线(a, VP_{V→b}) ∩ 直线(b, VP_{V→a})，透视下严格成立。
+  const lineInt=(p,q,r,s)=>{
+    const d1x=q[0]-p[0], d1y=q[1]-p[1], d2x=s[0]-r[0], d2y=s[1]-r[1];
+    const den=d1x*d2y-d1y*d2x;
+    if(Math.abs(den)<1e-9) return null;
+    const t=((r[0]-p[0])*d2y-(r[1]-p[1])*d2x)/den;
+    return [p[0]+d1x*t, p[1]+d1y*t];
+  };
+  // 四边形（按循环顺序的 4 个角）里某条边的方向消失点
+  const vpOf=(c,i,j)=>{
+    const k=(i+2)%4, l=(j+2)%4;
+    return lineInt(c[i], c[j], c[k], c[l]);
+  };
+  const deriveThird=(A,B)=>{
+    const tol=Math.min(faceSize(A), faceSize(B))*0.28;
+    const sh=[];
+    for(const ca of A.corners){
+      for(const cb of B.corners){
+        if(Math.hypot(ca[0]-cb[0], ca[1]-cb[1])<tol){ sh.push([ca,cb]); break; }
+      }
+    }
+    if(sh.length!==2) return null;
+    const ia=A.corners.indexOf(sh[0][0]), ib=A.corners.indexOf(sh[1][0]);
+    if((ia+1)%4!==ib && (ib+1)%4!==ia) return null;   // 共享的两个角必须是同一条棱
+    const out=[];
+    for(let t=0;t<2;t++){
+      const Vs=sh[t][0], Ps=sh[1-t][0];
+      const iV=A.corners.indexOf(Vs), iP=A.corners.indexOf(Ps);
+      const iA=(iV+1)%4===iP ? (iV+3)%4 : (iV+1)%4;
+      const jV=B.corners.indexOf(sh[t][1]), jP=B.corners.indexOf(sh[1-t][1]);
+      const jB=(jV+1)%4===jP ? (jV+3)%4 : (jV+1)%4;
+      const avs=A.corners[iA], bvs=B.corners[jB];
+      const vpA=vpOf(A.corners,iV,iA);   // 方向 V→a 的消失点（在 A 面里）
+      const vpB=vpOf(B.corners,jV,jB);   // 方向 V→b 的消失点（在 B 面里）
+      let D=null;
+      if(vpA&&vpB) D=lineInt(avs, vpB, bvs, vpA);
+      const s=(faceSize(A)+faceSize(B))/2;
+      const sane=D && Math.hypot(D[0]-Vs[0], D[1]-Vs[1])<s*6;
+      if(!sane) D=[avs[0]+bvs[0]-Vs[0], avs[1]+bvs[1]-Vs[1]];   // 退化时退回弱透视估计
+      // 四角循环顺序：V → a → D → b（V 与 D 相对，a 与 b 相对）
+      let bestQ=[Vs.slice(), avs.slice(), D, bvs.slice()];
+      let bestCv=cellVariance(data,W,H,bestQ,null);
+      for(const st of [s*0.04, s*0.015]){
+        for(let it=0;it<3;it++){
+          let imp=false;
+          for(let d=0;d<2;d++) for(const sg of [1,-1]){
+            const tr=bestQ.map(p=>p.slice());
+            tr[2][d]+=sg*st;
+            const cv=cellVariance(data,W,H,tr,null);
+            if(cv<bestCv-0.05){ bestCv=cv; bestQ=tr; imp=true; }
+          }
+          if(!imp) break;
+        }
+      }
+      let h=hFromCorners(bestQ), cc=bestQ, hit=0;
+      const cell=s/3;
+      if(h){
+        const an=assignNodes(h, cell);
+        if(an.hit>=4){
+          const qq=buildFaceQuad(pairsOf(an.nn,cand), {axx:cell,axy:0,ayx:0,ayy:cell});
+          if(qq.h){ h=qq.h; cc=qq.corners; hit=an.hit; }
+        }
+        bestCv=cellVariance(data,W,H,cc,h);
+      }
+      out.push({hit, corners:cc, h, cellVar:bestCv,
+                nodes:new Array(9).fill(-1), derived:true});
+    }
+    return out;
+  };
+  const derived=[];
+  for(let i=0;i<refined.length;i++)for(let j=i+1;j<refined.length;j++){
+    const d=deriveThird(refined[i], refined[j]);
+    if(d) for(const f of d){ f.pair=[refined[i], refined[j]]; derived.push(f); }
+  }
+  derived.sort((a,b)=> b.hit-a.hit || a.cellVar-b.cellVar);
+  const derivedTop=derived.slice(0,40);
+  let best=null, bestScore=-1e9;
+  const consider=(arr,cube)=>{
+    if(!arr.length) return;
+    let hit=0, cv=0, share=0;
+    for(let i=0;i<arr.length;i++){
+      hit+=arr[i].hit; cv+=arr[i].cellVar;
+      for(let j=i+1;j<arr.length;j++) share+=shareCnt(arr[i], arr[j]);
+    }
+    const score=4*hit-0.4*cv+12*share+3*(arr.length-1)+(cube?40:0);
+    if(score>bestScore){ bestScore=score; best=arr; }
+  };
+  const n=refined.length;
+  for(let i=0;i<n;i++){
+    consider([refined[i]]);
+    for(let j=i+1;j<n;j++){
+      if(overlap(refined[i],refined[j])) continue;
+      consider([refined[i],refined[j]]);
+      for(let k=j+1;k<n;k++){
+        if(overlap(refined[i],refined[k])||overlap(refined[j],refined[k])) continue;
+        const trip=[refined[i],refined[j],refined[k]];
+        consider(trip, cubeCornerPattern(trip));
+      }
+    }
+  }
+  // 解析出来的三面组天然满足立方体角结构
+  for(const c of derivedTop) consider([c.pair[0], c.pair[1], c], true);
+  if(!best) return [];
+  lastHypotheses=refined;
+  // 最后一轮：以选中面的真实格距为容差重新分配格位，把漏掉的格位尽量补回来；
+  // 命中变多才采纳（9 个格位齐全时单应拟合是精确的，角点误差可降到 1%）。
+  for(const f of best){
+    const cell=faceSize(f)/3;
+    let h=hFromCorners(f.corners);
+    if(!h) continue;
+    let curHit=f.hit, curQ=f.corners.map(p=>p.slice());
+    for(let it=0;it<3;it++){
+      const an=assignNodes(h, cell);
+      if(an.hit<=curHit) break;
+      const q=buildFaceQuad(pairsOf(an.nn,cand), {axx:cell,axy:0,ayx:0,ayy:cell});
+      if(!q.h) break;
+      curHit=an.hit; h=q.h; curQ=q.corners;
+    }
+    f.hit=curHit; f.corners=curQ;
+    f.cellVar=cellVariance(data,W,H,curQ,h);
+  }
+  return best.map(c=>{
+    const corners=c.corners.map(p=>[p[0],p[1]]);
+    const center=[0,1].map(d=>corners.reduce((s,p)=>s+p[d],0)/4);
+    return {corners, center, hits:c.hit, cellVar:c.cellVar};
+  });
+}
+// 面网格的"格子内部一致性"：9 个格子各自采样 rgb 标准差，跨格累加后取平均。
+// 网格正确 → 每格同色 → 方差小；网格错位 → 一格跨两色 → 方差大。
+function cellVariance(data,W,H,quad,h){
+  const toScreen=(u,v)=>{
+    if(h){
+      const d=h[6]*u+h[7]*v+1;
+      if(Math.abs(d)>1e-6) return [(h[0]*u+h[1]*v+h[2])/d,(h[3]*u+h[4]*v+h[5])/d];
+    }
+    const s=(u+1.5)/3, t=(v+1.5)/3;
+    const tx=quad[0][0]+(quad[1][0]-quad[0][0])*s, ty=quad[0][1]+(quad[1][1]-quad[0][1])*s;
+    const bx=quad[3][0]+(quad[2][0]-quad[3][0])*s, by=quad[3][1]+(quad[2][1]-quad[3][1])*s;
+    return [tx+(bx-tx)*t, ty+(by-ty)*t];
+  };
+  const S=4, inset=0.24;
+  let total=0, cells=0;
+  for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){
+    let n=0, r=0,g=0,b=0, r2=0,g2=0,b2=0;
+    for(let a=0;a<S;a++)for(let c=0;c<S;c++){
+      const u=j-0.5+inset+(1-2*inset)*(a+0.5)/S;
+      const v=i-0.5+inset+(1-2*inset)*(c+0.5)/S;
+      const [x,y]=toScreen(u,v);
+      const xi=Math.round(x), yi=Math.round(y);
+      if(xi<0||yi<0||xi>=W||yi>=H) continue;
+      const k=(yi*W+xi)*4, R=data[k],G=data[k+1],B=data[k+2];
+      n++; r+=R; g+=G; b+=B; r2+=R*R; g2+=G*G; b2+=B*B;
+    }
+    if(n<4) continue;
+    const varr=Math.sqrt(Math.max(0,r2/n-(r/n)*(r/n)));
+    const varg=Math.sqrt(Math.max(0,g2/n-(g/n)*(g/n)));
+    const varb=Math.sqrt(Math.max(0,b2/n-(b/n)*(b/n)));
+    total+=Math.max(varr,varg,varb); cells++;
+  }
+  return cells? total/cells : 999;
+}
+let lastHypotheses=null;   // 调试用：最近一次枚举到的网格假设
+let lastPoints=null;       // 调试用：最近一次参与拟合的贴纸中心点
+// 凸包 / 点在多边形内（用于判断白色贴纸是否属于魔方区域）
+function convexHull(pts){
+  if(pts.length<3) return pts.slice();
+  const p=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+  const lower=[];
+  for(const q of p){
+    while(lower.length>=2 && cr(lower[lower.length-2],lower[lower.length-1],q)<=0) lower.pop();
+    lower.push(q);
+  }
+  const upper=[];
+  for(let i=p.length-1;i>=0;i--){
+    const q=p[i];
+    while(upper.length>=2 && cr(upper[upper.length-2],upper[upper.length-1],q)<=0) upper.pop();
+    upper.push(q);
+  }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+function pointInPoly(x,y,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i][0], yi=poly[i][1], xj=poly[j][0], yj=poly[j][1];
+    if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+// 用命中的节点做单应拟合（≥4 点），得到面四角；不足 4 点时退回仿射外推
+// 注意：节点坐标 i,j ∈ {-1,0,1} 是 9 个贴纸中心，面四角在 ±1.5
+function buildFaceQuad(pairs0, best){
+  let pairs=pairs0;
+  let h=pairs.length>=4? fitHomographyLSQ(pairs) : null;
+  // 残差过大的点剔除后再拟合一次（拆分粘连块时可能留下位置不准的点）
+  if(h){
+    const tol=0.32*Math.min(Math.hypot(best.axx,best.axy), Math.hypot(best.ayx,best.ayy));
+    const keep=pairs.filter(([u,v,x,y])=>{
+      const d=h[6]*u+h[7]*v+1;
+      const px=(h[0]*u+h[1]*v+h[2])/d, py=(h[3]*u+h[4]*v+h[5])/d;
+      return Math.hypot(px-x, py-y)<=tol;
+    });
+    if(keep.length>=4 && keep.length<pairs.length){ pairs=keep; h=fitHomographyLSQ(pairs); }
+  }
+  let cornerFn;
+  if(h){
+    cornerFn=(u,v)=>{const d=h[6]*u+h[7]*v+1; return [(h[0]*u+h[1]*v+h[2])/d, (h[3]*u+h[4]*v+h[5])/d];};
+  }else{
+    const cx=pairs.reduce((s,p)=>s+p[2],0)/pairs.length;
+    const cy=pairs.reduce((s,p)=>s+p[3],0)/pairs.length;
+    cornerFn=(u,v)=>[cx+u*best.axx+v*best.ayx, cy+u*best.axy+v*best.ayy];
+  }
+  const corners=[[-1.5,-1.5],[1.5,-1.5],[1.5,1.5],[-1.5,1.5]].map(([u,v])=>cornerFn(u,v));
+  const c=cornerFn(0,0);
+  return {corners, center:[c[0],c[1]], hits:pairs.length, h:h||null};
+}
+// 单应的逆（屏幕坐标 → 面坐标 u,v）
+function invertH(h){
+  const a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],i=h[7];
+  // H = [[a,b,c],[d,e,f],[g,i,1]]
+  const A=e-f*i, B=-(b-c*i), C=b*f-c*e;
+  const D=-(d-f*g), E=a-c*g, F=-(a*f-c*d);
+  const G=d*i-e*g, Hh=-(a*i-b*g), I=a*e-b*d;
+  const det=a*A+b*D+c*G;
+  if(Math.abs(det)<1e-12) return null;
+  const m=[A,B,C,D,E,F,G,Hh,I].map(v=>v/det);
+  return (x,y)=>{
+    const w=m[6]*x+m[7]*y+m[8];
+    if(Math.abs(w)<1e-9) return null;
+    return [(m[0]*x+m[1]*y+m[2])/w, (m[3]*x+m[4]*y+m[5])/w];
+  };
+}
+// 最小二乘求单应（8 未知数，正态方程 + 高斯消元）
+function fitHomographyLSQ(pairs){
+  const A=[]; for(let i=0;i<8;i++) A.push(new Array(9).fill(0));
+  for(const [u,v,x,y] of pairs){
+    const r1=[u,v,1,0,0,0,-x*u,-x*v], r2=[0,0,0,u,v,1,-y*u,-y*v];
+    for(let i=0;i<8;i++){
+      for(let j=0;j<8;j++) A[i][j]+=r1[i]*r1[j]+r2[i]*r2[j];
+      A[i][8]+=r1[i]*x+r2[i]*y;
+    }
+  }
+  for(let c=0;c<8;c++){
+    let p=c; for(let r=c+1;r<8;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r;
+    if(Math.abs(A[p][c])<1e-12) return null;
+    const tmp=A[c]; A[c]=A[p]; A[p]=tmp;
+    for(let r=0;r<8;r++){
+      if(r===c) continue;
+      const f=A[r][c]/A[c][c];
+      if(!f) continue;
+      for(let k=c;k<=8;k++) A[r][k]-=f*A[c][k];
+    }
+  }
+  return A.map((row,i)=>row[8]/row[i]);
+}
+/* AUTODETECT-END */
+const AUTODETECT_END = true;
+
+// 在真实照片上跑自动识别：缩小→检测→换算回原图坐标→中心色判字母
+function autoDetectPhoto(p){
+  if(!p||!p.im) return false;
+  const W0=p.im.naturalWidth, H0=p.im.naturalHeight;
+  const dw=Math.min(560, W0), sc=dw/W0, dh=Math.max(1, Math.round(H0*sc));
+  let faces=[];
+  try{
+    const cvs=document.createElement('canvas');
+    cvs.width=dw; cvs.height=dh;
+    const c2=cvs.getContext('2d',{willReadFrequently:true});
+    c2.drawImage(p.im,0,0,dw,dh);
+    const img=c2.getImageData(0,0,dw,dh);
+    faces=detectFacesInPixels(img.data,dw,dh).slice(0,3);
+  }catch(err){ console.warn('自动识别失败', err); faces=[]; }
+  if(!faces.length){
+    p.quads=[null,null,null]; p.phaseIdx=0; p.grids={}; p.auto=false;
+    toast('自动识别没有找到完整的格子，请手动点角点（每个面 4 个角）');
+    return false;
+  }
+  const quads=[];
+  for(const f of faces){
+    const corners=f.corners.map(q=>[q[0]/sc, q[1]/sc]);
+    const cx=corners.reduce((s,q)=>s+q[0],0)/4, cy=corners.reduce((s,q)=>s+q[1],0)/4;
+    const side=(Math.hypot(corners[0][0]-corners[1][0],corners[0][1]-corners[1][1])+
+                Math.hypot(corners[1][0]-corners[2][0],corners[1][1]-corners[2][1]))/2;
+    const rC=Math.max(3, Math.round(side*0.10*p.scale));
+    const rgb=medianColor(p, Math.round(cx*p.scale), Math.round(cy*p.scale), rC);
+    const name=classify(rgb);
+    const letter=COLOR_TO_FACE[name];
+    if(quads.some(q=>q.letter===letter)){
+      toast(`自动识别出的面中心色重复（都判成「${name}」），请手动点角点`);
+      p.quads=[null,null,null]; p.phaseIdx=0; p.grids={}; p.auto=false;
+      return false;
+    }
+    quads.push({pts:corners, letter, centerName:name, cx, cy, hits:f.hits||0});
+  }
+  // 只认出 1~2 个面也照用：先把它们占位（画成提示框），剩下的面让用户点角补上
+  const arr=[null,null,null];
+  quads.forEach((q,i)=>arr[i]=q);
+  p.quads=arr; p.phaseIdx=quads.length; p.grids={}; p.auto=true; p.clicks=[];
+  if(p.phaseIdx===3){
+    finalizePhoto(p);
+    if(p.phaseIdx<3){ p.auto=false; return false; }   // finalize 校验失败已重置
+    // 命中格位数越低说明那个面越不可靠，提示用户核对
+    const hits=quads.map(q=>q.hits||0);
+    if(hits.some(h=>h<6)) toast(`自动识别完成，但格位命中偏少（${hits.join('/')}），请核对方框后拖动角点微调`);
+    return true;
+  }
+  toast(`自动识别出 ${quads.length} 个面，还差 ${3-quads.length} 个面请点 4 个角`);
+  return false;
+}
+
+// 单应性: 单位正方形(0,0),(1,0),(1,1),(0,1) -> [TL,TR,BR,BL]，精确处理透视
+function makeHomography(dst){
+  const A=[],b=[],src=[[0,0],[1,0],[1,1],[0,1]];
+  for(let k=0;k<4;k++){
+    const u=src[k][0],v=src[k][1],X=dst[k][0],Y=dst[k][1];
+    A.push([u,v,1,0,0,0,-X*u,-X*v]); b.push(X);
+    A.push([0,0,0,u,v,1,-Y*u,-Y*v]); b.push(Y);
+  }
+  const n=8,M=A.map((row,i)=>[...row,b[i]]);
+  for(let c=0;c<n;c++){
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    [M[c],M[p]]=[M[p],M[c]];
+    for(let r=0;r<n;r++){ if(r===c) continue;
+      const f=M[r][c]/M[c][c];
+      for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k];
+    }
+  }
+  const h=M.map((row,i)=>row[8]/row[i]);
+  return (u,v)=>{
+    const den=h[6]*u+h[7]*v+1;
+    return [(h[0]*u+h[1]*v+h[2])/den,(h[3]*u+h[4]*v+h[5])/den];
+  };
+}
+function gridPoints(pts,map){
+  const H=makeHomography([pts[map.TL],pts[map.TR],pts[map.BR],pts[map.BL]]);
+  const out=[];
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+    const q=H((j+0.5)/3,(i+0.5)/3);
+    out.push({x:q[0], y:q[1]});
+  }
+  return out;
+}
+function minEdgeLen(p){
+  let m=1e9;
+  for(let i=0;i<4;i++){const q=p[(i+1)%4];m=Math.min(m,Math.hypot(p[i][0]-q[0],p[i][1]-q[1]));}
+  const d=Math.hypot(p[0][0]-p[2][0],p[0][1]-p[2][1]);
+  return Math.min(m,d);
+}
+function medianColor(p,cx,cy,r){
+  const x0=Math.max(0,cx-r),y0=Math.max(0,cy-r);
+  const w=Math.min(p.cv.width,cx+r)-x0, h=Math.min(p.cv.height,cy+r)-y0;
+  if(w<=0||h<=0) return [128,128,128];
+  const d=p.ctx.getImageData(x0,y0,w,h).data;
+  const rs=[],gs=[],bs=[];
+  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){
+    const dx=xx-(cx-x0), dy=yy-(cy-y0);
+    if(dx*dx+dy*dy>r*r) continue;
+    const k=(yy*w+xx)*4; rs.push(d[k]);gs.push(d[k+1]);bs.push(d[k+2]);
+  }
+  if(!rs.length) return [128,128,128];
+  const med=a=>{a.sort((x,y)=>x-y);return a[a.length>>1];};
+  return [med(rs),med(gs),med(bs)];
+}
+
+/* ============ 按钮 ============ */
+function activePhoto(){ return photos[photos.length-1]||null; }
+$('btnUndo').addEventListener('click',()=>{
+  const p=activePhoto(); if(!p) return;
+  if(p.clicks.length){p.clicks.pop();}
+  else if(p.phaseIdx>0 && p.phaseIdx<=3){
+    p.phaseIdx--;
+    if(p.phaseIdx<3){
+      const q=p.quads[p.phaseIdx];
+      if(q&&p.grids[q.letter]) delete p.grids[q.letter];
+      p.quads[p.phaseIdx]=null;
+      p.auto=false;
+    }
+  }
+  updateUI(); redraw(p);
+});
+$('btnAuto').addEventListener('click',()=>{
+  const p=activePhoto(); if(!p) return;
+  p.quads=[null,null,null]; p.clicks=[]; p.phaseIdx=0; p.grids={}; p.auto=false;
+  autoDetectPhoto(p);
+  updateUI(); photos.forEach(redraw);
+});
+$('btnResetPhoto').addEventListener('click',()=>{
+  const p=activePhoto(); if(!p) return;
+  p.quads=[null,null,null]; p.clicks=[]; p.phaseIdx=0; p.grids={}; p.auto=false;
+  updateUI(); redraw(p);
+  toast('已切到手动模式：请依次点三个面的 4 个角');
+});
+$('btnNextPhoto').addEventListener('click',()=>{
+  document.getElementById('fileInput').click();
+});
+$('btnClearAll').addEventListener('click',()=>{
+  for(const f of FACE_LETTERS) stickers[f]=mk9();
+  for(const p of photos){ p.quads=[null,null,null]; p.clicks=[]; p.phaseIdx=0; p.grids={}; p.auto=false; }
+  solverCache={key:null,mode:null,res:null};
+  $('algSolve').textContent='—'; $('algGen').textContent='—';
+  $('btnCopySolve').disabled=true; $('btnCopyGen').disabled=true;
+  $('btnShowAnim').disabled=true;
+  updateUI(); photos.forEach(redraw);
+  toast('已清空全部识别数据');
+});
+
+/* ============ 画布绘制 ============ */
+function redraw(p){
+  if(!p||!p.im) return;
+  p.ctx.drawImage(p.im,0,0,p.cv.width,p.cv.height);
+  p.clicks.forEach((q,i)=>{
+    drawMarker(p.ctx,q[0]*p.scale,q[1]*p.scale,i+1);
+  });
+  drawStoredOverlays(p);
+  // 标注还没完成时，把自动识别出来的面画成琥珀色提示框（方便用户对着它补剩下的面）
+  if(p.phaseIdx<3){
+    for(const q of p.quads){
+      if(!q||!q.pts) continue;
+      p.ctx.save();
+      p.ctx.setLineDash([6,4]);
+      p.ctx.strokeStyle='rgba(245,158,11,.95)'; p.ctx.lineWidth=2;
+      p.ctx.beginPath();
+      q.pts.forEach((c,i)=>{const x=c[0]*p.scale,y=c[1]*p.scale; i?p.ctx.lineTo(x,y):p.ctx.moveTo(x,y);});
+      p.ctx.closePath(); p.ctx.stroke();
+      p.ctx.restore();
+      p.ctx.fillStyle='rgba(245,158,11,.95)'; p.ctx.font='bold 12px sans-serif';
+      p.ctx.textAlign='center'; p.ctx.textBaseline='middle';
+      p.ctx.fillText('自动：'+q.letter, q.cx*p.scale, q.cy*p.scale);
+    }
+  }
+}
+function drawStoredOverlays(p){
+  for(const letter in p.grids){
+    const g=p.grids[letter];
+    const st=stickers[letter];
+    if(!st||!st[0]||!g.pts) continue;
+    p.ctx.strokeStyle='rgba(0,120,255,.9)'; p.ctx.lineWidth=2;
+    p.ctx.beginPath();
+    g.corners.forEach((q,i)=>{const x=q[0]*p.scale,y=q[1]*p.scale; i?p.ctx.lineTo(x,y):p.ctx.moveTo(x,y);});
+    p.ctx.closePath(); p.ctx.stroke();
+    const minEdge=minEdgeLen(g.corners);
+    const s=Math.max(4, minEdge*p.scale*0.18);
+    for(let i=0;i<9;i++){
+      const c=st[i]? COLOR_HEX[st[i].name] : '#888';
+      const x=g.pts[i].x*p.scale, y=g.pts[i].y*p.scale;
+      p.ctx.fillStyle=c; p.ctx.strokeStyle='rgba(0,0,0,.5)'; p.ctx.lineWidth=1;
+      p.ctx.beginPath(); p.ctx.rect(x-s/2,y-s/2,s,s); p.ctx.fill(); p.ctx.stroke();
+    }
+    // 可拖动的角点把手
+    const hs=Math.max(4, minEdge*p.scale*0.055);
+    for(const q of g.corners){
+      const x=q[0]*p.scale, y=q[1]*p.scale;
+      p.ctx.beginPath(); p.ctx.arc(x,y,hs,0,Math.PI*2);
+      p.ctx.fillStyle='rgba(255,255,255,.92)'; p.ctx.fill();
+      p.ctx.strokeStyle='rgba(0,120,255,1)'; p.ctx.lineWidth=2; p.ctx.stroke();
+    }
+  }
+}
+function drawMarker(ctx,x,y,n){
+  ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2);
+  ctx.fillStyle='rgba(37,99,235,.85)'; ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(String(n),x,y+0.5);
+}
+
+/* ============ Kociemba 视图（仿 Cube Explorer Facelet Editor） ============ */
+// 立体效果：顶面与右面都是"深度方向 (DRX, -DRY)"的收敛平行四边形，紧贴正面，合成一个三维角
+const CELL=34, GAP=3, STEP=CELL+GAP;   // 格边长 / 格间隙 / 栅距
+const DRX=34, DRY=15;                  // 每层深度的屏幕偏移：右 34、上 15
+const FX=144, FY=105;                  // F 面左上角
+const FW=3*STEP-GAP, FH=3*STEP-GAP;    // 面宽高 = 108
+const FBASE={                          // 平铺面左上角：L 左、B 贴 R 最右列、D 下
+  F:[FX, FY],
+  L:[FX-FW-GAP, FY],
+  B:[FX+FW+GAP+3*DRX+GAP, FY-3*DRY],   // 与 R 面最右列对齐
+  D:[FX, FY+FH+GAP],
+};
+// (face, 绘制行 i, 绘制列 j) -> 4 顶点。U: i=0 是贴着 F 的前排；R: j=0 是贴着 F 的左列
+function cellPoly(face,i,j){
+  if(face==='U'){
+    const x0=FX+j*STEP+i*DRX, y0=FY-i*DRY;
+    return [[x0,y0],[x0+CELL,y0],[x0+CELL+DRX,y0-DRY],[x0+DRX,y0-DRY]];
+  }
+  if(face==='R'){
+    const x0=FX+FW+GAP+j*DRX, y0=FY+i*STEP-j*DRY;
+    return [[x0,y0],[x0+DRX,y0-DRY],[x0+DRX,y0-DRY+CELL],[x0,y0+CELL]];
+  }
+  const [bx,by]=FBASE[face];
+  return [[bx+j*STEP,by+i*STEP],[bx+j*STEP+CELL,by+i*STEP],
+          [bx+j*STEP+CELL,by+i*STEP+CELL],[bx+j*STEP,by+i*STEP+CELL]];
+}
+// 多边形整体向质心收缩 m 像素，形成均匀间隙
+function shrinkPoly(pts,m){
+  const cx=pts.reduce((s,p)=>s+p[0],0)/4, cy=pts.reduce((s,p)=>s+p[1],0)/4;
+  return pts.map(p=>{
+    const dx=p[0]-cx, dy=p[1]-cy, l=Math.hypot(dx,dy)||1;
+    const t=Math.min(m/l,0.35);
+    return [p[0]-dx*t, p[1]-dy*t];
+  });
+}
+// 绘制行列 -> 贴纸读图序号。仅 U 面行序需翻转（读图第 1 行是靠后的那排）
+function drawIdxToSticker(face,i,j){ return face==='U' ? (2-i)*3+j : i*3+j; }
+function stickerColor(face,idx){
+  const st=stickers[face]&&stickers[face][idx];
+  return st? COLOR_HEX[st.name] : '#8a8a90';
+}
+const SVG_NS='http://www.w3.org/2000/svg';
+function renderFacelets(){
+  const svg=$('faceletView'); svg.innerHTML='';
+  for(const face of FACE_LETTERS){
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+      const idx=drawIdxToSticker(face,i,j);
+      const poly=document.createElementNS(SVG_NS,'polygon');
+      poly.setAttribute('points', shrinkPoly(cellPoly(face,i,j),2)
+        .map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '));
+      poly.setAttribute('class','st');
+      poly.setAttribute('fill', stickerColor(face,idx));
+      poly.addEventListener('click',e=>openColorPopup(e,face,idx));
+      svg.appendChild(poly);
+    }
+  }
+}
+/* ---- 六色两排选择器（两个视图共用） ---- */
+const colorPopup=$('colorPopup'); let popupTarget=null;
+function openColorPopup(e,face,idx){
+  if(suppressClick){ suppressClick=false; return; }   // 拖动旋转后的那次 click 不弹窗
+  if(e&&e.stopPropagation) e.stopPropagation();
+  popupTarget={face,idx};
+  const cur=stickers[face][idx];
+  colorPopup.querySelector('.cpTitle').textContent=
+    `${face} 面第 ${idx+1} 格`+(cur?`（当前 ${cur.name}）`:'（未录入）');
+  colorPopup.style.display='block';
+  const ex=e&&e.clientX!=null? e.clientX : window.innerWidth/2;
+  const ey=e&&e.clientY!=null? e.clientY : window.innerHeight/2;
+  colorPopup.style.left=Math.max(4,Math.min(ex+10, window.innerWidth-150))+'px';
+  colorPopup.style.top =Math.max(4,Math.min(ey+10, window.innerHeight-110))+'px';
+}
+function applyColor(name){
+  if(!popupTarget) return;
+  const {face,idx}=popupTarget;
+  stickers[face][idx]={rgb:COLOR_REFS[name].slice(), name, manual:true};   // manual=用户手改，自动校正时不动它
+  popupTarget=null;
+  colorPopup.style.display='none';
+  // 两个视图 + 编码 + 校验 + 照片叠加层 全部同步
+  renderFacelets(); render3D(); renderString(); renderStats();
+  photos.forEach(redraw);
+  clearSolveResult();
+  toast(`${face} 面第 ${idx+1} 格已改为「${name}」`);
+}
+(function initColorPopup(){
+  const grid=colorPopup.querySelector('.cpGrid');
+  for(const c of ['黄','红','橙','绿','蓝','白']){   // 两排三列
+    const d=document.createElement('div');
+    d.className='cp'; d.style.background=COLOR_HEX[c]; d.title=c;
+    d.addEventListener('click',()=>applyColor(c));
+    grid.appendChild(d);
+  }
+  colorPopup.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{ colorPopup.style.display='none'; });
+})();
+/* ---- 3D 预览（CSS 3D，可拖拽旋转，贴纸同样可点击改色） ---- */
+function render3D(){
+  for(const f of FACE_LETTERS){
+    const div=$('f'+f);
+    div.innerHTML='';
+    const st=stickers[f];
+    for(let i=0;i<9;i++){
+      const s=document.createElement('div'); s.className='s3';
+      if(st&&st[i]) s.style.background=COLOR_HEX[st[i].name];
+      s.title=f+(i+1);
+      const face=f, idx=i;
+      s.addEventListener('click',e=>openColorPopup(e,face,idx));
+      div.appendChild(s);
+    }
+  }
+}
+/* ============ 编码与校验 ============ */
+function letterOf(name){ return COLOR_TO_FACE[name]; }
+function renderString(){
+  const parts=[]; let complete=true;
+  for(const f of FACE_LETTERS){
+    const st=stickers[f];
+    // 逐格输出：已设置的贴纸输出其颜色对应的面字母，未设置的输出 ?
+    parts.push(st.map(s=>s?letterOf(s.name):'?').join(''));
+    if(st.some(s=>!s)) complete=false;
+  }
+  const str=parts.join('');
+  $('outString').textContent=str;
+  $('outString').title=complete?'':'还有未录入的面';
+  $('btnCopy').disabled=false;
+  return str;
+}
+$('btnCopy').addEventListener('click',()=>{
+  const str=renderString();
+  if(str.includes('?')&& !confirm('还有未录入的面（编码中含 ?），仍要复制吗？')) return;
+  navigator.clipboard.writeText(str).then(()=>toast('编码已复制'));
+});
+
+/* ============ 贴纸统计（正确魔方六色各 9 块）：只做提示，绝不改动贴纸 ============ */
+const FACE_TO_NAME={U:'黄',R:'绿',F:'红',D:'白',L:'蓝',B:'橙'};
+
+function stickerCells(){
+  const out=[];
+  for(const f of FACE_LETTERS) for(let i=0;i<9;i++){ const st=stickers[f][i]; if(st) out.push({f,i,s:st}); }
+  return out;
+}
+function colorCounts(){
+  const c={U:0,R:0,F:0,D:0,L:0,B:0};
+  for(const it of stickerCells()) c[letterOf(it.s.name)]++;
+  return c;
+}
+function renderStats(){
+  const cells=stickerCells(), cnt=colorCounts();
+  $('statTop').innerHTML=`已识别 <b>${cells.length}</b>/54 个贴纸`;
+  const box=$('statChips'); box.innerHTML='';
+  for(const f of FACE_LETTERS){
+    const name=FACE_TO_NAME[f], n=cnt[f];
+    const chip=document.createElement('span');
+    chip.className='chip '+(n===9?'ok':'bad');
+    const sw=document.createElement('i'); sw.style.background=COLOR_HEX[name];
+    const tx=document.createElement('span');
+    tx.textContent=`${name} ${f} ${n}/9${n===9?' ✓':' ✗'}`;
+    chip.appendChild(sw); chip.appendChild(tx);
+    box.appendChild(chip);
+  }
+  const bad=FACE_LETTERS.filter(f=>cnt[f]!==9);
+  let note='', cls='hint';
+  if(!cells.length){ note='还没有数据，先从照片识别或用右上角改色。'; }
+  else if(bad.length){
+    const detail=bad.map(f=>`${FACE_TO_NAME[f]} ${cnt[f]} 块`).join('、');
+    note=`${detail}（应为 9 块）→ 有格子认错色，点击对应格子弹出颜色选择器修改`;
+    cls='hint';
+  }
+  else if(cells.length===54) note='六色各 9 块 ✓ 编码合法，可以直接求解';
+  else note=`还差 ${54-cells.length} 格未录入；六色数量目前都没有超标 ✓`;
+  const el=$('statNote'); el.textContent=note; el.className=cls;
+}
+
+/* ============ 求解（Kociemba 二阶段：快速 / 最优） ============ */
+let SOLVE_MODE='fast';
+let solverCache={key:null, mode:null, res:null};
+let solverBusy=false, solverWorker=null, solverReqId=0, inlineApi=null, lastFocus='solve';
+
+function solverSource(){
+  const el=document.getElementById('solverSrc');
+  return el? (el.textContent||'') : '';
+}
+function invertAlg(alg){
+  const t=(alg||'').trim();
+  if(!t) return '';
+  return t.split(/\s+/).reverse().map(x=>{
+    const f=x[0], s=x.slice(1);
+    return s==='2'? f+'2' : (s==="'"? f : f+"'");
+  }).join(' ');
+}
+function getInlineSolver(){
+  if(inlineApi) return inlineApi;
+  const src=solverSource();
+  if(!src) return null;
+  inlineApi=new Function(src+'\n;return SolverAPI;')();
+  return inlineApi;
+}
+function ensureWorker(){
+  if(solverWorker) return solverWorker;
+  if(typeof Worker!=='function') return null;
+  const src=solverSource(); if(!src) return null;
+  try{
+    const url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
+    solverWorker=new Worker(url);
+    solverWorker.onmessage=e=>{
+      const m=e.data||{};
+      if(m.type==='progress'){ setSolveStatus(m.text); return; }
+      if(m.type==='result' && m.id===solverReqId){ solverBusy=false; finishSolve(m, lastFocus); }
+    };
+    solverWorker.onerror=()=>{ solverBusy=false; setSolveStatus('求解器线程异常，改用页面内计算…'); solverWorker=null; };
+    return solverWorker;
+  }catch(err){ solverWorker=null; return null; }
+}
+function setSolveStatus(t){ $('solveStatus').textContent=t; }
+function clearSolveResult(msg){
+  solverCache={key:null, mode:null, res:null};
+  $('algSolve').textContent='—'; $('algGen').textContent='—';
+  $('btnCopySolve').disabled=true; $('btnCopyGen').disabled=true;
+  $('btnShowAnim').disabled=true;
+  setSolveStatus(msg||'格子改动过，重新点 Solve / Generate 生成新公式。');
+}
+function solveReady(){ return renderString().indexOf('?')<0; }
+function setSolveBusy(b){
+  solverBusy=b;
+  const ready=solveReady();
+  $('btnSolve').disabled=b||!ready;
+  $('btnGenerate').disabled=b||!ready;
+}
+function copyAlg(text, label){
+  const t=(text||'').trim();
+  if(!t||t==='—'||t.indexOf('（')===0){ toast('还没有可复制的公式'); return; }
+  navigator.clipboard.writeText(t).then(()=>toast(label+'已复制')).catch(()=>toast('复制失败，请手动选择文本'));
+}
+function startSolve(focus){
+  const code=renderString();
+  if(code.indexOf('?')>=0){ toast('还有未录入的格子（编码里有 ?），先补全再求解'); return; }
+  lastFocus=focus;
+  if(solverCache.key===code && solverCache.mode===SOLVE_MODE && solverCache.res){
+    finishSolve(solverCache.res, focus); return;
+  }
+  setSolveBusy(true);
+  setSolveStatus(SOLVE_MODE==='opt' ? '最优模式：迭代收紧步数上限，可能需要几秒…' : '快速模式搜索中…');
+  const timeMs = SOLVE_MODE==='opt' ? 8000 : 2000;
+  const w=ensureWorker();
+  if(w){
+    solverReqId++;
+    w.postMessage({type:'solve', id:solverReqId, facelets:code, mode:SOLVE_MODE, timeMs});
+    return;
+  }
+  try{
+    const api=getInlineSolver();
+    if(!api){ setSolveBusy(false); setSolveStatus('求解器未加载'); return; }
+    setSolveStatus('首次使用：正在生成搜索表（约 2~5 秒）…');
+    const r=api.solveFacelets(code,{mode:SOLVE_MODE, timeMs});
+    finishSolve(r, focus);
+  }catch(err){
+    setSolveBusy(false); setSolveStatus('求解失败：'+(err&&err.message||err));
+  }
+}
+function finishSolve(r, focus){
+  solverBusy=false;
+  const res=Object.assign({}, r);
+  solverCache={key:renderString(), mode:SOLVE_MODE, res};
+  if(!res.ok){
+    $('algSolve').textContent='—'; $('algGen').textContent='—';
+    $('btnCopySolve').disabled=true; $('btnCopyGen').disabled=true;
+    setSolveStatus('✗ '+res.error);
+    $('btnSolve').disabled=false; $('btnGenerate').disabled=false;
+    toast(res.error);
+    return;
+  }
+  const alg=(res.alg||'').trim(), inv=invertAlg(alg);
+  $('algSolve').textContent = alg || '（当前已是复原状态）';
+  $('algGen').textContent   = inv || '（当前已是复原状态）';
+  $('rowSolve').classList.toggle('hl', focus!=='gen');
+  $('rowGen').classList.toggle('hl', focus==='gen');
+  $('btnCopySolve').disabled=!alg;
+  $('btnCopyGen').disabled=!inv;
+  $('btnShowAnim').disabled=!alg;
+  const n=alg? alg.split(/\s+/).length : 0;
+  const extra=(res.buildMs? ` · 建表 ${res.buildMs}ms`:'');
+  setSolveStatus(`${SOLVE_MODE==='opt'?'最优':'快速'}模式：${n} 步 · 计算 ${res.ms}ms${extra}`+
+                 (res.already?' · 当前已是复原态':''));
+  $('btnSolve').disabled=false; $('btnGenerate').disabled=false;
+  toast(focus==='gen' ? `生成公式已算出：${n} 步（还原公式的逆）` : `还原公式已算出：${n} 步`);
+  // 求解完成后自动进入教学演示（生成模式不自动弹出，避免与“还原”语义混淆）
+  if(alg && focus!=='gen') setTimeout(()=>openShowStage(alg), 480);
+}
+function setSolveMode(m){
+  SOLVE_MODE=m;
+  $('modeSel').value=m;
+  solverCache={key:null, mode:null, res:null};
+  setSolveStatus(m==='opt'
+    ? '最优模式：从短到长逐级收紧步数上限，通常 17~20 步，需要几秒。'
+    : '快速模式：搜到即返回，通常 20~23 步，几十毫秒。');
+}
+$('modeSel').addEventListener('change',e=>setSolveMode(e.target.value));
+$('btnSolve').addEventListener('click',()=>startSolve('solve'));
+$('btnGenerate').addEventListener('click',()=>startSolve('gen'));
+$('btnCopySolve').addEventListener('click',()=>copyAlg($('algSolve').textContent,'还原公式'));
+$('btnCopyGen').addEventListener('click',()=>copyAlg($('algGen').textContent,'生成公式'));
+
+/* ============ 3D 视角：按住左键拖动旋转 / 轻点改色 ============ */
+const DEFAULT_VIEW={rx:-28, ry:-38};
+let viewRX=DEFAULT_VIEW.rx, viewRY=DEFAULT_VIEW.ry;
+const c3scene=$('c3scene');
+function applyView(){ $('cube3d').style.transform=`rotateX(${viewRX}deg) rotateY(${viewRY}deg)`; }
+let sceneDown=false, drag3d=false, suppressClick=false;
+let downX=0, downY=0, lastPX=0, lastPY=0;
+function onSceneMove(e){
+  if(!sceneDown) return;
+  if(!drag3d && Math.hypot(e.clientX-downX, e.clientY-downY)>4){
+    drag3d=true; c3scene.classList.add('dragging');
+    if(window.getSelection && window.getSelection().rangeCount)
+      window.getSelection().removeAllRanges();
+  }
+  if(drag3d){
+    if(e.preventDefault) e.preventDefault();
+    viewRY+=(e.clientX-lastPX)*0.45;
+    viewRX=Math.max(-90,Math.min(90, viewRX-(e.clientY-lastPY)*0.45));
+    applyView();
+  }
+  lastPX=e.clientX; lastPY=e.clientY;
+}
+function onSceneUp(){
+  if(!sceneDown) return;
+  sceneDown=false;
+  c3scene.classList.remove('dragging');
+  if(drag3d){
+    suppressClick=true;
+    setTimeout(()=>{ suppressClick=false; }, 0);
+    drag3d=false;
+  }
+  window.removeEventListener('pointermove', onSceneMove);
+  window.removeEventListener('pointerup', onSceneUp);
+}
+c3scene.addEventListener('pointerdown',e=>{
+  if(e.button!==0 && e.button!=null) return;
+  sceneDown=true; drag3d=false;
+  downX=lastPX=e.clientX; downY=lastPY=e.clientY;
+  window.addEventListener('pointermove', onSceneMove);
+  window.addEventListener('pointerup', onSceneUp);
+});
+// 阻止文字选择 / 原生拖放（避免拖动时把页面内容拖出去）；注意不要拦 pointerdown，否则贴纸的 click 会被吞掉
+c3scene.addEventListener('mousedown',e=>{ if(e.button===0 && e.preventDefault) e.preventDefault(); });
+c3scene.addEventListener('dragstart',e=>{ if(e.preventDefault) e.preventDefault(); });
+$('btnResetView').addEventListener('click',()=>{
+  viewRX=DEFAULT_VIEW.rx; viewRY=DEFAULT_VIEW.ry; applyView(); toast('三维视角已复位');
+});
+applyView();
+
+/* ============ UI 状态 ============ */
+function updateUI(){
+  const p=activePhoto();
+  const doneFaces=FACE_LETTERS.filter(f=>stickers[f]&&stickers[f][0]).length;
+  // 每张照片的标签与高亮
+  photos.forEach((ph,i)=>{
+    const isActive = ph===p && ph.phaseIdx<3;
+    ph.cardEl.classList.toggle('active', isActive);
+    let st;
+    if(ph.phaseIdx>=3){
+      const ls=ph.quads.filter(Boolean).map(q=>`${q.letter}(${q.centerName})`).join('，');
+      st=`照片 ${i+1} ✔ ${ph.auto?'已自动识别':'已录入'}：${ls||'（待重选）'}`;
+    } else if(ph.clicks.length||ph.phaseIdx>0){
+      st=`照片 ${i+1} · 标注中（第 ${ph.phaseIdx+1} 个面，已点 ${ph.clicks.length}/4 角）`;
+    } else {
+      st=`照片 ${i+1} · 待标注`;
+    }
+    ph.tagEl.textContent=st;
+  });
+  // 顶部阶段提示
+  let txt;
+  if(!p) txt='① 请先上传照片（上传后会自动识别三个面的角点）';
+  else if(p.phaseIdx>=3){
+    txt= doneFaces>=6
+      ? `✔ 六面全部录入完成（共 ${photos.length} 张照片）！可直接复制编码`
+      : `✔ 照片 ${photos.length} 录入完成（已录 ${doneFaces}/6 面）。可拖动角点微调，或拍下一张点「录入下一张照片」`;
+  }
+  else if(p.auto) txt=`第 ${photos.length} 张照片：已自动识别 ${p.quads.filter(Boolean).length} 个面，请补点剩下那个面的 4 个角：已点 ${p.clicks.length}/4`;
+  else txt=`第 ${photos.length} 张照片：点击${PHASE_NAMES[p.phaseIdx]}的 4 个角（顺序任意）：已点 ${p.clicks.length}/4`;
+  $('phaseText').textContent=txt;
+  $('faceInfo').textContent = (p&&p.quads.filter(Boolean).length)
+    ? '已识别：'+p.quads.filter(Boolean).map(q=>`${q.letter}(${q.centerName})`).join('，') : '';
+  $('btnUndo').disabled=!p||(p.phaseIdx===0&&p.clicks.length===0);
+  $('btnAuto').disabled=!p;
+  $('btnResetPhoto').disabled=!p||(p.phaseIdx===0&&p.clicks.length===0&&p.quads.every(q=>!q));
+  $('btnNextPhoto').style.display = (p&&p.phaseIdx>=3&&doneFaces<6) ? '' : 'none';
+  const code=renderString();
+  const ready=code.indexOf('?')<0 && !solverBusy;
+  $('btnSolve').disabled=!ready;
+  $('btnGenerate').disabled=!ready;
+  renderFacelets(); render3D(); renderStats();
+}
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+/* ============ 还原动画演示（教学：大字提示「转哪层·往哪转」+ 3D 同步转动） ============ */
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const SHOW_CN={U:'上层',R:'右层',F:'前面',D:'底层',L:'左层',B:'后面'};
+const SHOW_DIRS=['0,0,1','0,0,-1','1,0,0','-1,0,0','0,1,0','0,-1,0'];
+const SHOW_TF={
+  '0,0,1':'translateZ(var(--half))',
+  '0,0,-1':'rotateY(180deg) translateZ(var(--half))',
+  '1,0,0':'rotateY(90deg) translateZ(var(--half))',
+  '-1,0,0':'rotateY(-90deg) translateZ(var(--half))',
+  '0,1,0':'rotateX(90deg) translateZ(var(--half))',
+  '0,-1,0':'rotateX(-90deg) translateZ(var(--half))'
+};
+/* 与求解器完全同源的几何定义（solverSrc 只作为文本存在，这里需要独立一份） */
+const SHOW_FACE_ORDER=['U','R','F','D','L','B'];
+const SHOW_FDEFS={
+  U:{n:[0,1,0],  up:[0,0,-1], right:[1,0,0]},
+  R:{n:[1,0,0],  up:[0,1,0],  right:[0,0,-1]},
+  F:{n:[0,0,1],  up:[0,1,0],  right:[1,0,0]},
+  D:{n:[0,-1,0], up:[0,0,1],  right:[1,0,0]},
+  L:{n:[-1,0,0], up:[0,1,0],  right:[0,0,1]},
+  B:{n:[0,0,-1], up:[0,1,0],  right:[-1,0,0]}
+};
+const SHOW_FPOS=[], SHOW_FNORM=[];
+for(let fi=0; fi<6; fi++){
+  const d=SHOW_FDEFS[SHOW_FACE_ORDER[fi]];
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const u=1-r, v=c-1, idx=fi*9+r*3+c;
+    SHOW_FPOS[idx]=[ d.n[0]*2 + d.up[0]*u + d.right[0]*v,
+                     d.n[1]*2 + d.up[1]*u + d.right[1]*v,
+                     d.n[2]*2 + d.up[2]*u + d.right[2]*v ];
+    SHOW_FNORM[idx]=d.n.slice();
+  }
+}
+/* 绕轴 a 顺时针（从该面外侧看）转 90° */
+function showRot90(v,a){
+  const d=v[0]*a[0]+v[1]*a[1]+v[2]*a[2];
+  const cr=[ a[1]*v[2]-a[2]*v[1], a[2]*v[0]-a[0]*v[2], a[0]*v[1]-a[1]*v[0] ];
+  return [ a[0]*d-cr[0], a[1]*d-cr[1], a[2]*d-cr[2] ];
+}
+const stage={open:false,steps:[],idx:-1,cubies:[],cs:52,playing:false,paused:false,token:0,done:false};
+
+function parseShowSteps(alg){
+  return (alg||'').trim().split(/\s+/).filter(Boolean).map(token=>{
+    const f=token[0], suf=token.slice(1);
+    if('URFDLB'.indexOf(f)<0) return null;
+    return {token, face:f, times: suf==='2'?2 : (suf==="'"?-1:1)};
+  }).filter(Boolean);
+}
+function stepPhrase(st){
+  if(!st) return '';
+  const dir = st.times===2 ? '整体转半圈 180°'
+            : (st.times>0 ? '顺时针 90°' : '逆时针 90°');
+  return `<b>${SHOW_CN[st.face]}</b> · <em>${FACE_TO_NAME[st.face]}色面</em> · ${dir}`;
+}
+/* 从当前 stickers 构建 27 个块（位置 ±1，面朝向用 FPOS/FNORM 直接推导，与求解器完全同源） */
+function buildShowCubies(){
+  const map=new Map();
+  const get=(x,y,z)=>{
+    const k=x+','+y+','+z;
+    let c=map.get(k);
+    if(!c){ c={x,y,z,faces:{},el:null}; map.set(k,c); }
+    return c;
+  };
+  for(let i=0;i<54;i++){
+    const p=SHOW_FPOS[i], n=SHOW_FNORM[i];
+    const face=SHOW_FACE_ORDER[(i/9)|0];
+    const st=stickers[face] && stickers[face][i%9];
+    const hex=st? COLOR_HEX[st.name] : '#6d7280';
+    const c=get(Math.sign(p[0]), Math.sign(p[1]), Math.sign(p[2]));
+    c.faces[n.join(',')]=hex;
+  }
+  stage.cubies=[...map.values()].filter(c=>Object.keys(c.faces).length>0);
+}
+function sizeShowCube(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const cs=Math.max(24, Math.min(vh*0.108, vw*0.19, 76));
+  stage.cs=Math.round(cs);
+  const el=$('showStage');
+  el.style.setProperty('--cs', stage.cs+'px');
+  el.style.setProperty('--half', (stage.cs/2)+'px');
+}
+function renderShowCube(){
+  const root=$('showCubeRoot');
+  root.innerHTML='';
+  const S=stage.cs;
+  for(const c of stage.cubies){
+    const el=document.createElement('div');
+    el.className='cb';
+    el.style.transform=`translate3d(${c.x*S}px,${-c.y*S}px,${c.z*S}px)`;
+    for(const d of SHOW_DIRS){
+      const f=document.createElement('div');
+      f.className='cf';
+      f.style.transform=SHOW_TF[d];
+      const col=c.faces[d]||'#0b0d12';
+      f.style.background=col; f._col=col;
+      el.appendChild(f);
+    }
+    c.el=el;
+    root.appendChild(el);
+  }
+}
+function paintCubies(){
+  for(const c of stage.cubies){
+    const kids=c.el.children;
+    for(let i=0;i<SHOW_DIRS.length;i++){
+      const col=c.faces[SHOW_DIRS[i]]||'#0b0d12';
+      if(kids[i]._col!==col){ kids[i]._col=col; kids[i].style.background=col; }
+    }
+  }
+}
+function resetShowTransforms(){
+  const S=stage.cs;
+  for(const c of stage.cubies){
+    c.el.style.transform=`translate3d(${c.x*S}px,${-c.y*S}px,${c.z*S}px)`;
+  }
+}
+function layerOf(axis){
+  return stage.cubies.filter(c=> c.x*axis[0]+c.y*axis[1]+c.z*axis[2]===1);
+}
+function rotateVec(v, a, dir){
+  return dir>0 ? showRot90(v,a) : showRot90(v,[-a[0],-a[1],-a[2]]);
+}
+/* 逻辑层转动：位置与每个面的朝向一起旋转，颜色随朝向走 */
+function applyTurnData(st){
+  const a=SHOW_FDEFS[st.face].n;
+  const dir=st.times>0?1:-1;
+  const passes=Math.abs(st.times);
+  const layer=layerOf(a);
+  for(let k=0;k<passes;k++){
+    for(const c of layer){
+      const p=rotateVec([c.x,c.y,c.z],a,dir);
+      c.x=p[0]; c.y=p[1]; c.z=p[2];
+      const nf={};
+      for(const key in c.faces){
+        const m=rotateVec(key.split(',').map(Number),a,dir);
+        nf[m.join(',')]=c.faces[key];
+      }
+      c.faces=nf;
+    }
+  }
+}
+function turnAnim(st){
+  return new Promise(resolve=>{
+    const a=SHOW_FDEFS[st.face].n;
+    const ax=[a[0],-a[1],a[2]];          // 数学坐标 → CSS 坐标（y 取反）
+    const total=90*st.times;             // 顺时针为正
+    const layer=layerOf(a);
+    const S=stage.cs, dur=700, t0=performance.now();
+    function frame(now){
+      const k=Math.min(1,(now-t0)/dur);
+      const e=k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+      const ang=total*e;
+      for(const c of layer){
+        c.el.style.transform=
+          `rotate3d(${ax[0]},${ax[1]},${ax[2]},${ang}deg) translate3d(${c.x*S}px,${-c.y*S}px,${c.z*S}px)`;
+      }
+      if(k<1) requestAnimationFrame(frame); else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
+}
+function setLayerHL(face,on){
+  const a=SHOW_FDEFS[face].n;
+  for(const c of layerOf(a)) c.el.classList.toggle('hl',on);
+}
+function updateShowUI(){
+  const box=$('showSteps');
+  const kids=box.children;
+  for(let i=0;i<kids.length;i++){
+    kids[i].className='st'+(i<stage.idx?' done':'')+(i===stage.idx?' cur':'');
+  }
+  const st=stage.steps[stage.idx];
+  if(!st){
+    const fin=stage.done;
+    $('nowIdx').textContent=fin?'演示结束':'准备开始';
+    $('nowLetter').textContent=fin?'✓':'—';
+    $('nowLetter').classList.toggle('fin',fin);
+    $('nowLabel').innerHTML=fin?'<b>六面已复原完成</b>':'正在准备演示…';
+    $('nowArrow').classList.add('off');
+    $('showBarFill').style.width=fin?'100%':'0%';
+    return;
+  }
+  $('nowIdx').textContent=`第 ${stage.idx+1} / ${stage.steps.length} 步`;
+  $('nowLetter').textContent=st.token;
+  $('nowLetter').classList.remove('fin');
+  $('nowLabel').innerHTML=stepPhrase(st);
+  const arrow=$('nowArrow');
+  arrow.classList.toggle('off', st.times===2);
+  arrow.style.transform = st.times<0 ? 'scaleX(-1)' : 'none';
+  $('showBarFill').style.width=((stage.idx+1)/stage.steps.length*100).toFixed(1)+'%';
+  const cur=kids[stage.idx];
+  if(cur && cur.scrollIntoView){
+    try{ cur.scrollIntoView({block:'nearest', inline:'center'}); }catch(e){}
+  }
+}
+async function runShow(fromStart){
+  const my=++stage.token;
+  stage.playing=true;
+  if(fromStart){
+    stage.idx=-1; stage.done=false; stage.paused=false;
+    $('showPlay').textContent='暂停';
+    buildShowCubies(); renderShowCube(); updateShowUI();
+  }
+  while(stage.idx < stage.steps.length-1){
+    if(!stage.open || my!==stage.token) return;
+    if(stage.paused){ await wait(120); continue; }
+    stage.idx++;
+    updateShowUI();
+    const st=stage.steps[stage.idx];
+    setLayerHL(st.face,true);
+    await wait(110);                       // 先亮起要转的那一层
+    if(!stage.open || my!==stage.token) return;
+    await turnAnim(st);                    // 约 0.7s 转动
+    if(!stage.open || my!==stage.token) return;
+    applyTurnData(st);
+    resetShowTransforms();
+    paintCubies();
+    setLayerHL(st.face,false);
+    await wait(190);                       // 停顿，凑满每步约 1 秒
+  }
+  if(!stage.open || my!==stage.token) return;
+  stage.playing=false; stage.done=true;
+  stage.idx=stage.steps.length;
+  $('showPlay').textContent='重播';
+  updateShowUI();
+}
+async function stepOnce(){
+  if(stage.idx>=stage.steps.length-1) return;
+  const my=++stage.token;
+  stage.paused=true;
+  $('showPlay').textContent='继续';
+  stage.idx++;
+  updateShowUI();
+  const st=stage.steps[stage.idx];
+  setLayerHL(st.face,true);
+  await wait(80);
+  if(my!==stage.token) return;
+  await turnAnim(st);
+  if(my!==stage.token) return;
+  applyTurnData(st);
+  resetShowTransforms();
+  paintCubies();
+  setLayerHL(st.face,false);
+  if(stage.idx>=stage.steps.length-1){ stage.done=true; stage.idx=stage.steps.length; $('showPlay').textContent='重播'; }
+  updateShowUI();
+}
+function jumpTo(n){
+  stage.token++;
+  stage.paused=true;
+  $('showPlay').textContent='继续';
+  buildShowCubies();
+  const end=Math.min(n, stage.steps.length-1);
+  for(let i=0;i<=end;i++) applyTurnData(stage.steps[i]);
+  renderShowCube();
+  stage.idx=n<0?-1:end;
+  stage.done=(n>=stage.steps.length);
+  if(stage.done) stage.idx=stage.steps.length;
+  updateShowUI();
+}
+function openShowStage(alg){
+  const steps=parseShowSteps(alg);
+  if(!steps.length){ toast('没有可演示的步骤'); return; }
+  stage.steps=steps; stage.idx=-1; stage.done=false; stage.paused=false; stage.token++;
+  sizeShowCube();
+  buildShowCubies();
+  renderShowCube();
+  $('showAlgText').textContent=alg;
+  const box=$('showSteps'); box.innerHTML='';
+  steps.forEach(s=>{
+    const el=document.createElement('span');
+    el.className='st'; el.textContent=s.token;
+    box.appendChild(el);
+  });
+  updateShowUI();
+  $('showStage').hidden=false;
+  document.body.style.overflow='hidden';
+  stage.open=true;
+  $('showPlay').textContent='暂停';
+  requestAnimationFrame(()=>{ $('showStage').classList.add('on'); });
+  setTimeout(()=>{ if(stage.open) runShow(false); },260);
+}
+function closeShowStage(){
+  stage.token++;
+  stage.open=false; stage.playing=false;
+  $('showStage').classList.remove('on');
+  document.body.style.overflow='';
+  setTimeout(()=>{ if(!stage.open) $('showStage').hidden=true; },320);
+}
+$('showClose').addEventListener('click',closeShowStage);
+$('showPlay').addEventListener('click',()=>{
+  if(!stage.open) return;
+  if(stage.done){ runShow(true); return; }
+  stage.paused=!stage.paused;
+  $('showPlay').textContent=stage.paused?'继续':'暂停';
+  if(!stage.playing && !stage.paused){ runShow(false); }
+});
+$('showNext').addEventListener('click',()=>{ if(stage.open) stepOnce(); });
+$('showPrev').addEventListener('click',()=>{ if(stage.open) jumpTo(stage.idx-1); });
+$('showAgain').addEventListener('click',()=>{ if(stage.open) runShow(true); });
+$('btnShowAnim').addEventListener('click',()=>{
+  const t=($('algSolve').textContent||'').trim();
+  if(!t || t==='—' || t.indexOf('（')===0){ toast('还没有还原公式，先点 Solve'); return; }
+  openShowStage(t);
+});
+document.addEventListener('keydown',e=>{
+  if(!stage.open) return;
+  if(e.key==='Escape'){ closeShowStage(); }
+  else if(e.key===' '){ e.preventDefault(); $('showPlay').click(); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); stepOnce(); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); jumpTo(stage.idx-1); }
+});
+window.addEventListener('resize',()=>{
+  if(!stage.open) return;
+  sizeShowCube();
+  renderShowCube();
+});
+
+updateUI();
+</script>
+</body>
+</html>
