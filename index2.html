@@ -1091,6 +1091,7 @@ function rebuildPhotoDom(){
 
 /* ============ 图片载入入口 ============ */
 document.addEventListener('paste',e=>{
+  if(e.target && e.target.id==='outString') return;   // 编码框粘贴由其自身处理器负责
   for(const item of (e.clipboardData||{}).items||[]){
     if(item.type.startsWith('image/')){ loadImageFile(item.getAsFile()); e.preventDefault(); return; }
   }
@@ -2263,7 +2264,9 @@ function applyFaceletString(str, source){
     toast(`中心格字母错误：第 ${fi+1} 面中心应为 "${CENTERS[fi]}"，实际为 "${str[fi*9+4]}"`);
     return false;
   }
-  const st=decode(str);
+  const api=getInlineSolver();
+  if(!api){ toast('求解器尚未就绪，请刷新页面后重试'); return false; }
+  const st=api.decode(str);
   if(!st){ toast('编码无法解析：存在现实魔方不可能的颜色组合，请检查'); return false; }
   // 写入贴纸：字母 = 面 → 该面中心色名
   FACE_LETTERS.forEach((f,fi)=>{
@@ -2277,7 +2280,7 @@ function applyFaceletString(str, source){
   });
   clearSolveResult();
   updateUI();
-  const v=validate(decode(str));
+  const v=api.validate(st);
   if(v.ok){
     toast((source==='paste'?'粘贴成功：':'编码更新：')+'两个视图已填色，校验通过，可直接求解');
   } else {
